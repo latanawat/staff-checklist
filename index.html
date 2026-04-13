@@ -1,0 +1,2298 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Staff Checklist</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --red: #e8192c;
+    --red-light: #fff0f1;
+    --green: #22c55e;
+    --orange: #f97316;
+    --gray: #f5f5f5;
+    --gray2: #e5e5e5;
+    --gray3: #9ca3af;
+    --text: #1a1a1a;
+    --text2: #555;
+    --purple: #7c3aed;
+    --purple-light: #ede9fe;
+    --white: #fff;
+    --radius: 12px;
+    --shadow: 0 2px 12px rgba(0,0,0,0.08);
+  }
+  body {
+    font-family: 'Sarabun', 'Segoe UI', sans-serif;
+    background: #f0f0f0;
+    min-height: 100vh;
+    color: var(--text);
+  }
+  /* Phone shell */
+  .app-shell {
+    max-width: 430px;
+    margin: 0 auto;
+    background: var(--white);
+    min-height: 100vh;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+  }
+  /* Header */
+  .app-header {
+    background: var(--white);
+    border-bottom: 1px solid var(--gray2);
+    padding: 14px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .app-header h1 { font-size: 16px; font-weight: 600; }
+  .btn-icon { background: none; border: none; cursor: pointer; padding: 6px; border-radius: 8px; color: var(--text); display: flex; align-items: center; }
+  .btn-icon:hover { background: var(--gray); }
+  .btn-icon svg { width: 22px; height: 22px; }
+  /* Views */
+  .view { display: none; flex: 1; overflow-y: auto; padding-bottom: 80px; }
+  .view.active { display: block; }
+  /* Home */
+  .home-hero {
+    background: linear-gradient(135deg, #e8192c 0%, #c0122a 100%);
+    color: white;
+    padding: 24px 20px;
+  }
+  .home-hero h2 { font-size: 20px; font-weight: 700; margin-bottom: 4px; }
+  .home-hero p { font-size: 14px; opacity: 0.85; }
+  .home-stats {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 12px;
+    padding: 16px;
+    background: var(--white);
+  }
+  .stat-card {
+    background: var(--gray);
+    border-radius: var(--radius);
+    padding: 12px;
+    text-align: center;
+  }
+  .stat-num { font-size: 22px; font-weight: 700; color: var(--red); }
+  .stat-label { font-size: 11px; color: var(--gray3); margin-top: 2px; }
+  .section-title {
+    padding: 16px 16px 8px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--gray3);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  /* Audit cards */
+  .audit-list { padding: 0 16px 16px; display: flex; flex-direction: column; gap: 10px; }
+  .audit-card {
+    background: var(--white);
+    border: 1px solid var(--gray2);
+    border-radius: var(--radius);
+    padding: 14px;
+    cursor: pointer;
+    transition: all 0.15s;
+    box-shadow: var(--shadow);
+  }
+  .audit-card:hover { border-color: var(--red); transform: translateY(-1px); }
+  .audit-card-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; }
+  .audit-card-title { font-weight: 600; font-size: 14px; flex: 1; }
+  .score-badge {
+    font-weight: 700;
+    font-size: 13px;
+    padding: 3px 8px;
+    border-radius: 20px;
+    margin-left: 8px;
+    white-space: nowrap;
+  }
+  .score-badge.good { background: #dcfce7; color: #15803d; }
+  .score-badge.ok { background: #fef9c3; color: #a16207; }
+  .score-badge.bad { background: #fee2e2; color: #b91c1c; }
+  .audit-card-meta { font-size: 12px; color: var(--gray3); display: flex; gap: 12px; flex-wrap: wrap; }
+  .audit-card-meta span { display: flex; align-items: center; gap: 3px; }
+  .empty-state { text-align: center; padding: 60px 20px; color: var(--gray3); }
+  .empty-state svg { width: 64px; height: 64px; margin-bottom: 12px; opacity: 0.3; }
+  .empty-state p { font-size: 15px; }
+  /* FAB */
+  .fab {
+    position: fixed;
+    bottom: 24px;
+    right: 50%;
+    transform: translateX(50%);
+    max-width: 398px;
+    width: calc(100% - 32px);
+    background: var(--red);
+    color: white;
+    border: none;
+    border-radius: 14px;
+    padding: 16px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    box-shadow: 0 4px 16px rgba(232,25,44,0.4);
+    transition: all 0.15s;
+    z-index: 200;
+  }
+  .fab:hover { background: #c0122a; }
+  /* Form */
+  .form-info-section {
+    background: var(--gray);
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .form-group { display: flex; flex-direction: column; gap: 6px; }
+  .form-group label { font-size: 13px; font-weight: 600; color: var(--text2); }
+  .form-group label span { font-size: 11px; font-weight: 400; color: var(--gray3); margin-left: 4px; }
+  .form-input {
+    background: var(--white);
+    border: 1px solid var(--gray2);
+    border-radius: 10px;
+    padding: 10px 12px;
+    font-size: 14px;
+    font-family: inherit;
+    color: var(--text);
+    width: 100%;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  .form-input:focus { border-color: var(--red); }
+  select.form-input { cursor: pointer; }
+  textarea.form-input { resize: vertical; min-height: 80px; }
+  /* Progress bar */
+  .form-progress { padding: 12px 16px 0; }
+  .progress-bar-track { height: 4px; background: var(--gray2); border-radius: 2px; }
+  .progress-bar-fill { height: 4px; background: var(--red); border-radius: 2px; transition: width 0.3s; }
+  .progress-label { font-size: 12px; color: var(--gray3); margin-top: 6px; }
+  /* Part header */
+  .part-header {
+    background: var(--red-light);
+    border-left: 4px solid var(--red);
+    padding: 12px 16px;
+    margin: 16px 0 0;
+  }
+  .part-header h3 { font-size: 15px; font-weight: 700; color: var(--red); }
+  /* Question block */
+  .question-block {
+    padding: 16px;
+    border-bottom: 1px solid var(--gray2);
+  }
+  .question-title {
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 1.5;
+    margin-bottom: 10px;
+  }
+  .question-title .part-label { color: var(--red); }
+  .question-criteria {
+    background: var(--gray);
+    border-radius: 10px;
+    padding: 10px 12px;
+    margin-bottom: 12px;
+    font-size: 12.5px;
+    color: var(--text2);
+    line-height: 1.6;
+  }
+  .question-criteria .method { font-weight: 600; margin-bottom: 6px; }
+  .question-criteria ul { padding-left: 16px; }
+  .question-criteria li { margin-bottom: 3px; }
+  /* Score buttons */
+  .score-buttons { display: grid; gap: 8px; margin-bottom: 12px; }
+  .score-buttons.has-10 { grid-template-columns: 1fr 1fr; }
+  .score-buttons.no-10 { grid-template-columns: 1fr 1fr 1fr; }
+  .score-btn {
+    padding: 12px 8px;
+    border-radius: 10px;
+    border: 2px solid var(--gray2);
+    background: var(--white);
+    font-size: 16px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.15s;
+    color: var(--text);
+    font-family: inherit;
+    text-align: center;
+  }
+  .score-btn:hover { border-color: var(--red); color: var(--red); }
+  .score-btn.selected-0 { background: #fee2e2; border-color: #ef4444; color: #b91c1c; }
+  .score-btn.selected-5 { background: #fef9c3; border-color: #eab308; color: #854d0e; }
+  .score-btn.selected-10 { background: #dcfce7; border-color: #22c55e; color: #15803d; }
+  .score-btn.selected-na { background: var(--gray2); border-color: var(--gray3); color: var(--text2); }
+  /* Photo upload */
+  .photo-section { margin-bottom: 12px; }
+  .photo-label { font-size: 12px; color: var(--text2); margin-bottom: 6px; font-weight: 600; }
+  .photo-label span { font-weight: 400; color: var(--gray3); }
+  .photo-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+  .photo-add-btn {
+    width: 72px; height: 72px;
+    border-radius: 10px;
+    border: 2px dashed var(--gray3);
+    background: var(--purple-light);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.15s;
+    color: var(--purple);
+  }
+  .photo-add-btn:hover { border-color: var(--purple); }
+  .photo-add-btn svg { width: 28px; height: 28px; }
+  .photo-thumb {
+    width: 72px; height: 72px;
+    border-radius: 10px;
+    object-fit: cover;
+    border: 2px solid var(--gray2);
+    position: relative;
+    cursor: pointer;
+  }
+  .photo-thumb-wrap { position: relative; width: 72px; height: 72px; }
+  .photo-remove {
+    position: absolute;
+    top: -6px; right: -6px;
+    width: 20px; height: 20px;
+    background: #ef4444;
+    color: white;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 12px;
+    line-height: 1;
+    border: none;
+    z-index: 10;
+  }
+  /* Notes */
+  .notes-label { font-size: 12px; color: var(--text2); margin-bottom: 4px; font-weight: 600; }
+  .notes-input {
+    width: 100%;
+    border: 1px solid var(--gray2);
+    border-radius: 8px;
+    padding: 8px 10px;
+    font-size: 13px;
+    font-family: inherit;
+    resize: vertical;
+    min-height: 60px;
+    color: var(--text);
+    outline: none;
+  }
+  .notes-input:focus { border-color: var(--red); }
+  /* Nav buttons */
+  .form-nav {
+    position: fixed;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 100%;
+    max-width: 430px;
+    background: var(--white);
+    border-top: 1px solid var(--gray2);
+    padding: 12px 16px;
+    display: flex;
+    gap: 10px;
+    z-index: 200;
+  }
+  .btn-prev, .btn-next, .btn-submit {
+    flex: 1;
+    padding: 13px;
+    border-radius: 12px;
+    border: none;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+    transition: all 0.15s;
+  }
+  .btn-prev { background: var(--gray); color: var(--text2); }
+  .btn-prev:hover { background: var(--gray2); }
+  .btn-next { background: var(--red); color: white; }
+  .btn-next:hover { background: #c0122a; }
+  .btn-submit { background: var(--red); color: white; }
+  .btn-submit:hover { background: #c0122a; }
+  /* Result view */
+  .result-header {
+    background: var(--white);
+    padding: 16px;
+    border-bottom: 1px solid var(--gray2);
+  }
+  .result-title { font-size: 17px; font-weight: 700; margin-bottom: 8px; }
+  .result-badges { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+  .result-badge {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 4px 8px;
+    border-radius: 20px;
+    background: var(--gray);
+    color: var(--text2);
+  }
+  .result-badge.completed { background: #dcfce7; color: #15803d; }
+  .result-badge.score-main { background: #e0f2fe; color: #0369a1; }
+  .result-meta { display: flex; flex-direction: column; gap: 10px; }
+  .result-meta-item { display: flex; gap: 10px; align-items: flex-start; }
+  .result-meta-icon { width: 32px; height: 32px; border-radius: 50%; background: var(--purple-light); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .result-meta-icon svg { width: 16px; height: 16px; color: var(--purple); }
+  .result-meta-label { font-size: 11px; color: var(--gray3); margin-bottom: 2px; }
+  .result-meta-value { font-size: 14px; font-weight: 600; }
+  /* Score section */
+  .score-section { padding: 20px 16px; }
+  .score-section h3 { font-size: 16px; font-weight: 700; margin-bottom: 16px; }
+  .gauge-wrap { display: flex; justify-content: center; margin-bottom: 20px; }
+  .gauge-container { position: relative; width: 200px; height: 110px; }
+  .gauge-label {
+    position: absolute;
+    bottom: 0; left: 50%;
+    transform: translateX(-50%);
+    text-align: center;
+  }
+  .gauge-pct { font-size: 28px; font-weight: 800; }
+  .gauge-sub { font-size: 11px; color: var(--gray3); }
+  /* Part progress bars */
+  .part-row { margin-bottom: 12px; }
+  .part-row-label { display: flex; justify-content: space-between; margin-bottom: 5px; font-size: 13px; }
+  .part-row-name { font-weight: 500; }
+  .part-row-pct { font-weight: 700; }
+  .part-row-pct.good { color: var(--green); }
+  .part-row-pct.ok { color: var(--orange); }
+  .part-row-pct.bad { color: var(--red); }
+  .part-bar { height: 8px; background: var(--gray2); border-radius: 4px; overflow: hidden; }
+  .part-bar-fill { height: 100%; border-radius: 4px; transition: width 0.6s ease; }
+  .part-bar-fill.good { background: var(--green); }
+  .part-bar-fill.ok { background: var(--orange); }
+  .part-bar-fill.bad { background: var(--red); }
+  /* Answer detail */
+  .answer-section { padding: 0 16px 16px; }
+  .answer-section h3 { font-size: 14px; font-weight: 700; color: var(--gray3); text-transform: uppercase; letter-spacing: 0.5px; padding: 12px 0 8px; }
+  .answer-item {
+    background: var(--white);
+    border: 1px solid var(--gray2);
+    border-radius: 10px;
+    padding: 12px;
+    margin-bottom: 8px;
+  }
+  .answer-item-label { font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+  .answer-item-score { display: inline-block; font-size: 13px; font-weight: 700; padding: 2px 10px; border-radius: 20px; }
+  .answer-item-score.s0 { background: #fee2e2; color: #b91c1c; }
+  .answer-item-score.s5 { background: #fef9c3; color: #854d0e; }
+  .answer-item-score.s10 { background: #dcfce7; color: #15803d; }
+  .answer-item-score.sna { background: var(--gray2); color: var(--text2); }
+  .answer-item-notes { font-size: 12px; color: var(--text2); margin-top: 6px; }
+  .answer-photos { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+  .answer-photos img { width: 56px; height: 56px; object-fit: cover; border-radius: 8px; border: 1px solid var(--gray2); }
+  /* Export buttons */
+  .export-bar {
+    padding: 12px 16px;
+    border-top: 1px solid var(--gray2);
+    display: flex;
+    gap: 8px;
+    background: var(--white);
+    position: sticky;
+    bottom: 0;
+  }
+  .btn-export {
+    flex: 1;
+    padding: 11px;
+    border-radius: 10px;
+    border: 1.5px solid var(--gray2);
+    background: var(--white);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    transition: all 0.15s;
+    color: var(--text);
+  }
+  .btn-export:hover { border-color: var(--text); }
+  .btn-export.pdf { border-color: #ef4444; color: #ef4444; }
+  .btn-export.pdf:hover { background: #fee2e2; }
+  .btn-export.excel { border-color: #16a34a; color: #16a34a; }
+  .btn-export.excel:hover { background: #dcfce7; }
+  /* Delete audit confirm */
+  .delete-zone { padding: 16px; }
+  .btn-delete {
+    width: 100%;
+    padding: 12px;
+    border-radius: 10px;
+    border: 1.5px solid #fca5a5;
+    background: var(--white);
+    color: #b91c1c;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+  }
+  .btn-delete:hover { background: #fee2e2; }
+  /* Toast */
+  .toast {
+    position: fixed;
+    bottom: 90px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #1a1a1a;
+    color: white;
+    padding: 10px 20px;
+    border-radius: 25px;
+    font-size: 13px;
+    font-weight: 500;
+    z-index: 1000;
+    opacity: 0;
+    transition: opacity 0.3s;
+    pointer-events: none;
+    white-space: nowrap;
+  }
+  .toast.show { opacity: 1; }
+  /* Hidden file input */
+  input[type="file"] { display: none; }
+  /* Back btn */
+  .back-btn { display: flex; align-items: center; gap: 4px; font-size: 14px; font-weight: 600; background: none; border: none; cursor: pointer; color: var(--red); padding: 0; font-family: inherit; }
+  .back-btn svg { width: 18px; height: 18px; }
+  /* Divider */
+  .divider { height: 8px; background: var(--gray); }
+
+  /* ── In-App Camera Modal ── */
+  .cam-overlay {
+    position: fixed; inset: 0; background: #000; z-index: 900;
+    display: none; flex-direction: column; align-items: center; justify-content: center;
+  }
+  .cam-overlay.open { display: flex; }
+  #cam-video {
+    width: 100%; height: 100%; object-fit: cover;
+    position: absolute; inset: 0;
+  }
+  .cam-top-bar {
+    position: absolute; top: 0; left: 0; right: 0;
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 16px; z-index: 10;
+  }
+  .cam-btn-icon {
+    width: 44px; height: 44px; border-radius: 50%;
+    background: rgba(0,0,0,0.5); border: none; cursor: pointer;
+    display: flex; align-items: center; justify-content: center; color: #fff;
+  }
+  .cam-btn-icon svg { width: 22px; height: 22px; }
+  .cam-bottom-bar {
+    position: absolute; bottom: 0; left: 0; right: 0;
+    display: flex; justify-content: center; align-items: center;
+    padding: 40px 24px; gap: 48px; z-index: 10;
+  }
+  .cam-shutter {
+    width: 76px; height: 76px; border-radius: 50%;
+    background: #fff; border: 5px solid rgba(255,255,255,0.4);
+    cursor: pointer; transition: transform 0.1s;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.4);
+  }
+  .cam-shutter:active { transform: scale(0.92); }
+  .cam-preview-overlay {
+    position: fixed; inset: 0; background: #000; z-index: 910;
+    display: none; flex-direction: column;
+  }
+  .cam-preview-overlay.open { display: flex; }
+  #cam-preview-img { width: 100%; flex: 1; object-fit: contain; }
+  .cam-preview-bar {
+    display: flex; justify-content: space-around; padding: 24px;
+    background: rgba(0,0,0,0.8); gap: 16px;
+  }
+  .cam-preview-btn {
+    flex: 1; padding: 14px; border-radius: 12px; border: none;
+    font-size: 15px; font-weight: 700; cursor: pointer; font-family: inherit;
+  }
+  .cam-preview-btn.retake { background: rgba(255,255,255,0.15); color: #fff; }
+  .cam-preview-btn.use    { background: var(--red); color: #fff; }
+
+  /* ── Action Sheet (photo source chooser) ── */
+  .action-sheet-bg {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+    z-index: 800; display: none; align-items: flex-end;
+  }
+  .action-sheet-bg.open { display: flex; }
+  .action-sheet {
+    background: var(--white); border-radius: 20px 20px 0 0;
+    padding: 12px 16px 32px; width: 100%; max-width: 430px; margin: 0 auto;
+  }
+  .action-sheet-handle {
+    width: 40px; height: 4px; border-radius: 2px;
+    background: var(--gray2); margin: 0 auto 16px;
+  }
+  .action-sheet-title { font-size: 13px; color: var(--gray3); text-align: center; margin-bottom: 12px; }
+  .action-sheet-btn {
+    width: 100%; padding: 15px; border-radius: 12px; border: 1.5px solid var(--gray2);
+    background: var(--white); font-size: 15px; font-weight: 600;
+    cursor: pointer; font-family: inherit; color: var(--text);
+    display: flex; align-items: center; gap: 10px; margin-bottom: 10px;
+    transition: background 0.15s;
+  }
+  .action-sheet-btn:hover { background: var(--gray); }
+  .action-sheet-btn svg { width: 22px; height: 22px; flex-shrink: 0; }
+  .action-sheet-btn.cancel { color: var(--red); border-color: #fca5a5; }
+
+  /* Step indicator */
+  .step-dots { display: flex; justify-content: center; gap: 6px; padding: 10px; }
+  .step-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--gray2); transition: all 0.2s; }
+  .step-dot.active { background: var(--red); width: 24px; border-radius: 4px; }
+  .step-dot.done { background: var(--green); }
+  /* Sync badge */
+  .sync-badge {
+    display: flex; align-items: center; gap: 4px;
+    font-size: 11px; font-weight: 600;
+    padding: 3px 8px; border-radius: 20px;
+    cursor: pointer; border: none; background: var(--gray);
+    color: var(--gray3); transition: all 0.2s;
+  }
+  .sync-badge.syncing { background: #e0f2fe; color: #0369a1; }
+  .sync-badge.synced  { background: #dcfce7; color: #15803d; }
+  .sync-badge.offline { background: #fee2e2; color: #b91c1c; }
+  .sync-badge svg { width: 12px; height: 12px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .spinning { animation: spin 1s linear infinite; }
+  /* Config banner */
+  .config-banner {
+    background: #fffbeb; border-bottom: 2px solid #fbbf24;
+    padding: 10px 16px; display: flex; align-items: center; gap: 10px;
+    font-size: 13px; cursor: pointer;
+  }
+  .config-banner svg { width: 18px; height: 18px; color: #d97706; flex-shrink: 0; }
+  /* Settings view */
+  .settings-section { padding: 16px; display: flex; flex-direction: column; gap: 14px; }
+  .settings-card {
+    background: var(--white); border: 1px solid var(--gray2);
+    border-radius: var(--radius); padding: 16px;
+  }
+  .settings-card h3 { font-size: 14px; font-weight: 700; margin-bottom: 12px; }
+  .settings-step {
+    display: flex; gap: 10px; align-items: flex-start;
+    padding: 8px 0; border-bottom: 1px solid var(--gray2);
+  }
+  .settings-step:last-child { border-bottom: none; }
+  .step-num {
+    width: 22px; height: 22px; border-radius: 50%; background: var(--red);
+    color: white; font-size: 12px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  }
+  .step-text { font-size: 13px; line-height: 1.5; color: var(--text2); }
+  .step-text strong { color: var(--text); }
+  .settings-status { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text2); }
+  .btn-test {
+    padding: 8px 16px; border-radius: 8px; border: 1.5px solid var(--green);
+    background: var(--white); color: var(--green); font-size: 13px; font-weight: 600;
+    cursor: pointer; font-family: inherit;
+  }
+  .btn-test:hover { background: #dcfce7; }
+  .btn-save-url {
+    width: 100%; padding: 13px; border-radius: 12px; border: none;
+    background: var(--red); color: white; font-size: 15px; font-weight: 600;
+    cursor: pointer; font-family: inherit; margin-top: 4px;
+  }
+  .btn-save-url:hover { background: #c0122a; }
+  .btn-sync-now {
+    width: 100%; padding: 11px; border-radius: 10px;
+    border: 1.5px solid #0369a1; background: var(--white);
+    color: #0369a1; font-size: 14px; font-weight: 600;
+    cursor: pointer; font-family: inherit;
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+  }
+  .btn-sync-now:hover { background: #e0f2fe; }
+  .url-display {
+    font-size: 11px; color: var(--gray3); word-break: break-all;
+    background: var(--gray); padding: 6px 8px; border-radius: 6px;
+    margin-top: 4px; font-family: monospace;
+  }
+</style>
+</head>
+<body>
+<div class="app-shell">
+
+  <!-- ========== HOME VIEW ========== -->
+  <div id="view-home" class="view active">
+    <div class="app-header">
+      <h1>Staff Checklist</h1>
+      <button class="sync-badge" id="sync-badge" onclick="showView('settings')" title="Sync Status">
+        <svg id="sync-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
+        <span id="sync-label">ตั้งค่า</span>
+      </button>
+    </div>
+    <div id="config-banner" class="config-banner" onclick="showView('settings')" style="display:none">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 010 14.14M4.93 4.93a10 10 0 000 14.14"/></svg>
+      <span>ยังไม่ได้ตั้งค่า Google Sheets — คลิกเพื่อตั้งค่า</span>
+    </div>
+    <div class="home-hero">
+      <h2>ระบบตรวจคุณภาพร้านค้า</h2>
+      <p>บันทึกและติดตามผลการตรวจประเมินสาขา</p>
+    </div>
+    <div class="home-stats" id="home-stats">
+      <div class="stat-card"><div class="stat-num" id="stat-total">0</div><div class="stat-label">การตรวจทั้งหมด</div></div>
+      <div class="stat-card"><div class="stat-num" id="stat-avg">-</div><div class="stat-label">คะแนนเฉลี่ย</div></div>
+      <div class="stat-card"><div class="stat-num" id="stat-month">0</div><div class="stat-label">เดือนนี้</div></div>
+    </div>
+    <div class="section-title">ประวัติการตรวจ</div>
+    <div class="audit-list" id="audit-list">
+      <div class="empty-state" id="empty-state">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+        <p>ยังไม่มีการตรวจที่บันทึกไว้<br>กด + เพื่อเริ่มการตรวจใหม่</p>
+      </div>
+    </div>
+    <button class="fab" onclick="startNewAudit()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="20" height="20"><path d="M12 5v14M5 12h14"/></svg>
+      เริ่มการตรวจใหม่
+    </button>
+  </div>
+
+  <!-- ========== FORM VIEW ========== -->
+  <div id="view-form" class="view">
+    <div class="app-header">
+      <button class="back-btn" onclick="confirmLeaveForm()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 19l-7-7 7-7"/></svg>
+        กลับ
+      </button>
+      <h1>Staff Checklist</h1>
+      <div style="width:60px"></div>
+    </div>
+    <div class="form-progress">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+        <span style="font-size:13px;font-weight:600;" id="progress-text">ข้อมูลทั่วไป</span>
+        <span class="progress-label" id="progress-step">0 / 6</span>
+      </div>
+      <div class="progress-bar-track"><div class="progress-bar-fill" id="progress-fill" style="width:0%"></div></div>
+    </div>
+    <div class="step-dots" id="step-dots"></div>
+    <div id="form-steps"></div>
+    <div class="form-nav" id="form-nav">
+      <button class="btn-prev" id="btn-prev" onclick="prevStep()">ย้อนกลับ</button>
+      <button class="btn-next" id="btn-next" onclick="nextStep()">ถัดไป</button>
+      <button class="btn-submit" id="btn-submit" style="display:none" onclick="submitAudit()">บันทึกผล</button>
+    </div>
+  </div>
+
+  <!-- ========== RESULT VIEW ========== -->
+  <div id="view-result" class="view">
+    <div class="app-header">
+      <button class="back-btn" onclick="showView('home')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 19l-7-7 7-7"/></svg>
+        กลับ
+      </button>
+      <h1>ผลการตรวจ</h1>
+      <div style="width:60px"></div>
+    </div>
+    <div id="result-content"></div>
+    <div class="export-bar">
+      <button class="btn-export pdf" onclick="exportPDF()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+        Export PDF
+      </button>
+      <button class="btn-export excel" onclick="exportExcel()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="15" x2="15" y2="9"/><line x1="15" y1="15" x2="9" y2="9"/></svg>
+        Export Excel
+      </button>
+    </div>
+  </div>
+
+  <!-- ========== SETTINGS VIEW ========== -->
+  <div id="view-settings" class="view">
+    <div class="app-header">
+      <button class="back-btn" onclick="showView('home')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 19l-7-7 7-7"/></svg>
+        กลับ
+      </button>
+      <h1>ตั้งค่า Google Sheets</h1>
+      <div style="width:60px"></div>
+    </div>
+    <div class="settings-section">
+      <div class="settings-card">
+        <h3>📋 ขั้นตอนการตั้งค่า (ทำครั้งแรกครั้งเดียว)</h3>
+        <div class="settings-step">
+          <div class="step-num">1</div>
+          <div class="step-text">ไปที่ <strong>Google Sheets</strong> → สร้าง Spreadsheet ใหม่ ตั้งชื่อ เช่น <strong>Staff Checklist</strong></div>
+        </div>
+        <div class="settings-step">
+          <div class="step-num">2</div>
+          <div class="step-text">ใน Spreadsheet → เมนู <strong>Extensions → Apps Script</strong></div>
+        </div>
+        <div class="settings-step">
+          <div class="step-num">3</div>
+          <div class="step-text">ลบโค้ดเดิมออก แล้ว<strong>วางโค้ดจากไฟล์ Code.gs</strong> ที่ได้มาพร้อมกับ app นี้</div>
+        </div>
+        <div class="settings-step">
+          <div class="step-num">4</div>
+          <div class="step-text">กด <strong>Deploy → New deployment</strong> → Type: <strong>Web app</strong> → Execute as: <strong>Me</strong> → Who has access: <strong>Anyone</strong> → กด Deploy → Copy URL</div>
+        </div>
+        <div class="settings-step">
+          <div class="step-num">5</div>
+          <div class="step-text">วาง URL ด้านล่าง แล้วกด <strong>บันทึก</strong></div>
+        </div>
+      </div>
+
+      <div class="settings-card">
+        <h3>🔗 Web App URL</h3>
+        <div class="form-group">
+          <input class="form-input" id="sheets-url-input" placeholder="https://script.google.com/macros/s/..." style="font-size:12px;">
+        </div>
+        <div id="saved-url-display" class="url-display" style="display:none"></div>
+        <button class="btn-save-url" onclick="saveSheetURL()">บันทึก URL</button>
+      </div>
+
+      <div class="settings-card" id="sync-status-card" style="display:none">
+        <h3>🔄 สถานะการ Sync</h3>
+        <div class="settings-status" id="sync-status-text">
+          <span>ยังไม่ได้ทดสอบ</span>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:12px;">
+          <button class="btn-test" onclick="testConnection()">ทดสอบการเชื่อมต่อ</button>
+          <button class="btn-sync-now" onclick="syncNow()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
+            Sync ตอนนี้
+          </button>
+        </div>
+      </div>
+
+      <div class="settings-card" style="background:#f0fdf4;border-color:#bbf7d0">
+        <h3 style="color:#15803d">💡 หมายเหตุ</h3>
+        <div style="font-size:13px;color:#166534;line-height:1.7;">
+          • ข้อมูลทุก audit จะ sync ขึ้น Google Sheets อัตโนมัติ<br>
+          • รูปภาพยังเก็บในเครื่อง (เพื่อประหยัด quota)<br>
+          • ทุกคนที่ใช้ app จะเห็นข้อมูลเดียวกัน<br>
+          • ข้อมูลใน Sheet จะถูก sync ลงมาเมื่อเปิด app
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<!-- ── In-App Camera Modal ── -->
+<div class="cam-overlay" id="cam-overlay">
+  <video id="cam-video" autoplay playsinline muted></video>
+  <div class="cam-top-bar">
+    <button class="cam-btn-icon" id="cam-close-btn" onclick="closeCamera()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>
+    </button>
+    <button class="cam-btn-icon" id="cam-flip-btn" onclick="flipCamera()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 4v6h6"/><path d="M23 20v-6h-6"/><path d="M20.49 9A9 9 0 005.64 5.64L1 10M23 14l-4.64 4.36A9 9 0 013.51 15"/></svg>
+    </button>
+  </div>
+  <div class="cam-bottom-bar">
+    <div style="width:44px"></div>
+    <button class="cam-shutter" id="cam-shutter-btn" onclick="capturePhoto()"></button>
+    <div style="width:44px"></div>
+  </div>
+</div>
+
+<!-- ── Photo Preview (confirm/retake) ── -->
+<div class="cam-preview-overlay" id="cam-preview-overlay">
+  <img id="cam-preview-img" src="" alt="preview">
+  <div class="cam-preview-bar">
+    <button class="cam-preview-btn retake" onclick="retakePhoto()">🔄 ถ่ายใหม่</button>
+    <button class="cam-preview-btn use"    onclick="usePhoto()">✓ ใช้รูปนี้</button>
+  </div>
+</div>
+
+<!-- ── Action Sheet ── -->
+<div class="action-sheet-bg" id="action-sheet-bg" onclick="closeActionSheet(event)">
+  <div class="action-sheet" id="action-sheet">
+    <div class="action-sheet-handle"></div>
+    <div class="action-sheet-title">เลือกวิธีเพิ่มรูปภาพ</div>
+    <button class="action-sheet-btn" id="btn-open-camera" onclick="openInAppCamera()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>
+      ถ่ายภาพ (ไม่ reload)
+    </button>
+    <button class="action-sheet-btn" id="btn-open-gallery" onclick="openGalleryPicker()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+      เลือกจากแกลเลอรี่
+    </button>
+    <button class="action-sheet-btn cancel" onclick="closeActionSheet()">ยกเลิก</button>
+  </div>
+</div>
+
+<!-- Gallery file input (no capture attr = gallery only = safe from reload) -->
+<input type="file" id="file-input" accept="image/*" multiple>
+
+<script>
+// ===================== DATA DEFINITIONS =====================
+const PARTS = [
+  {
+    id: 'p1', name: 'Part 1: Sales', color: '#e8192c',
+    questions: [
+      {
+        id: 'p1q1',
+        label: 'Part 1: Sales คำถามที่ 1',
+        title: 'รู้เป้าขายรายวัน/รายเดือน และยอด MTD ของแบรนด์ตนเอง',
+        maxScore: 10,
+        scores: [0, 5, 10],
+        method: 'สัมภาษณ์รายบุคคล และตรวจเอกสารยอดขาย เช่น สมุดบันทึกยอดขาย หรือเอกสารที่ใช้อ้างอิงข้อมูลยอดขาย',
+        criteria: [
+          { score: 10, text: 'สามารถแจ้งเป้าขายทั้งรายวัน รายเดือน และยอดขายสะสมถึงปัจจุบัน (MTD)' },
+          { score: 5, text: 'สามารถแจ้งเป้าขายได้บางส่วน' },
+          { score: 0, text: 'ไม่สามารถให้ข้อมูลเป้าขายย้อนหลังได้' }
+        ]
+      },
+      {
+        id: 'p1q2',
+        label: 'Part 1: Sales คำถามที่ 2',
+        title: 'เก็บบันทึกยอดขายได้อย่างถูกต้อง และดูข้อมูลย้อนหลังได้',
+        maxScore: 10,
+        scores: [0, 5, 10],
+        method: 'ตรวจเอกสารข้อมูลยอดขายหรือสมุดบันทึกยอดขาย',
+        criteria: [
+          { score: 10, text: 'มีการบันทึกยอดขายลงในระบบหรือสมุดบันทึกอย่างชัดเจน และสามารถค้นหาข้อมูลย้อนหลังได้' },
+          { score: 5, text: 'มีการบันทึกยอดขายแต่ไม่ครบถ้วน หรือไม่สามารถดูข้อมูลย้อนหลังได้' },
+          { score: 0, text: 'ไม่มีการบันทึกยอดขาย' }
+        ]
+      }
+    ]
+  },
+  {
+    id: 'p2', name: 'Part 2: Staff', color: '#7c3aed',
+    questions: [
+      {
+        id: 'p2q1',
+        label: 'Part 2: Staff คำถามที่ 1',
+        title: 'แต่งกายเรียบร้อย ตามระเบียบของบริษัท หรือแบรนด์ต้นสังกัด',
+        maxScore: 5,
+        scores: [0, 5],
+        method: 'ตรวจการแต่งกายและบุคลิกภาพของพนักงาน อิงตามหลักของบริษัทหรือแบรนด์ต้นสังกัด',
+        criteria: [
+          { score: 5, text: 'แต่งกายและมีบุคลิก สะอาด เรียบร้อยตามระเบียบของบริษัทและใส่ยูนิฟอร์มของแบรนด์ต้นสังกัด' },
+          { score: 0, text: 'แต่งกายและมีบุคลิกไม่ตรงตามระเบียบของบริษัท หรือขัดกับภาพลักษณ์ของแบรนด์' }
+        ]
+      },
+      {
+        id: 'p2q2',
+        label: 'Part 2: Staff คำถามที่ 2',
+        title: 'มีพนักงานขายเหมาะสมกับ พื้นที่ ยอดขายและจำนวน traffic และมีพนักงานพร้อมให้บริการในจุดพื้นที่ขาย',
+        maxScore: 5,
+        scores: [0, 5],
+        method: 'ตรวจสอบตารางงานประจำเดือน และเปรียบเทียบ Sales/HQ ให้เหมาะสมกับยอดขายและพื้นที่ขาย',
+        criteria: [
+          { score: 5, text: 'มีพนักงานเพียงพอและเหมาะสมกับพื้นที่และยอดขาย และสอดคล้องกับจำนวนลูกค้า (Traffic) ในแต่ละวัน' },
+          { score: 0, text: 'จำนวนพนักงานไม่สอดคล้องกับ พื้นที่ ยอดขาย และ จำนวน traffic หรือไม่มีพนักงานประจำจุดพื้นที่ขาย' }
+        ]
+      },
+      {
+        id: 'p2q3',
+        label: 'Part 2: Staff คำถามที่ 3',
+        title: "เก็บบันทึกข้อมูลผ่าน Microsoft Form Brands' customer profile 10 คน/เดือน",
+        maxScore: 5,
+        scores: [0, 5],
+        method: 'ตรวจสอบฐานข้อมูลลูกค้าจากหน้าร้าน ย้อนหลัง 3 เดือน',
+        criteria: [
+          { score: 5, text: 'เก็บข้อมูลลูกค้าผ่าน Microsoft Form ครบจำนวน 10 คน ต่อเดือน ย้อนหลัง 3 เดือน' },
+          { score: 0, text: 'เก็บข้อมูลลูกค้าผ่าน Microsoft Form ไม่ครบตามจำนวนที่กำหนด' }
+        ]
+      }
+    ]
+  },
+  {
+    id: 'p3', name: 'Part 3: Service', color: '#0ea5e9',
+    questions: [
+      {
+        id: 'p3q1',
+        label: 'Part 3: Service คำถามที่ 1',
+        title: 'Service Ceremony Module 1 Approach : ทักทายและสร้างปฏิสัมพันธ์กับลูกค้าและมีการถามคำถามเพื่อเปิดการขาย',
+        maxScore: 5,
+        scores: [0, 5],
+        method: 'สังเกตพฤติกรรมการขายจริงกับลูกค้า/ถามคำถามจำลองสถานการณ์ (กรณีไม่มีลูกค้า)',
+        criteria: [
+          { score: 5, text: 'ทักทายลูกค้าด้วยความกระตือรือร้น และมีการถามคำถามเพื่อค้นหาความต้องการของลูกค้า' },
+          { score: 0, text: 'ไม่มีการสร้างปฏิสัมพันธ์กับลูกค้า หรือ ไม่มีการถามคำถามเพื่อค้นหาความต้องการของลูกค้า' }
+        ]
+      },
+      {
+        id: 'p3q2',
+        label: 'Part 3: Service คำถามที่ 2',
+        title: 'Service Ceremony Module 2 Up-Selling : ใช้ Selling technique เพิ่มยอดขายและเพิ่มจำนวนชิ้นต่อบิล',
+        maxScore: 5,
+        scores: [0, 5],
+        method: 'สังเกตพฤติกรรมการขายจริงกับลูกค้า/ถามคำถามจำลองสถานการณ์ (กรณีไม่มีลูกค้า)',
+        criteria: [
+          { score: 5, text: 'แนะนำลูกค้าให้ซื้อสินค้ามากกว่า 1 ชิ้น ใน 1 บิล (up-selling/cross-selling)' },
+          { score: 0, text: 'ไม่เสนอขายสินค้าเพิ่มเติม หรือไม่แสดงความพยายามในการปิดการขาย' }
+        ]
+      },
+      {
+        id: 'p3q3',
+        label: 'Part 3: Service คำถามที่ 3',
+        title: 'Service Ceremony Module 2 Up-Selling : สามารถให้ข้อมูล product knowledge ได้อย่างถูกต้อง',
+        maxScore: 5,
+        scores: [0, 5],
+        method: 'สังเกตพฤติกรรมการขายจริงกับลูกค้า/ถามคำถามจำลองสถานการณ์ (กรณีไม่มีลูกค้า)',
+        criteria: [
+          { score: 5, text: 'สามารถให้ข้อมูลสินค้าได้ถูกต้อง ชัดเจน และมั่นใจ และเสนอขายสินค้าตามหลักการ Function / Emotion' },
+          { score: 0, text: 'ไม่อธิบายข้อมูลเกี่ยวกับสินค้า หรือไม่นำหลักการ Function/Emotion มาใช้เสนอขายสินค้า' }
+        ]
+      },
+      {
+        id: 'p3q4',
+        label: 'Part 3: Service คำถามที่ 4',
+        title: "Service Ceremony Module 3 Never Say No : อธิบายแคมเปญ Can't Find? Ask Us และการซื้อสินค้าผ่านช่องทาง O2O*",
+        maxScore: 5,
+        scores: [0, 5],
+        method: 'สังเกตพฤติกรรมการขายจริงกับลูกค้า/ถามคำถามจำลองสถานการณ์ (กรณีไม่มีลูกค้า)',
+        criteria: [
+          { score: 5, text: 'สามารถอธิบายรายละเอียดแคมเปญและช่องทางการซื้อสินค้า O2O* ได้อย่างชัดเจน' },
+          { score: 0, text: 'ไม่ให้ข้อมูลเกี่ยวกับแคมเปญ และไม่สามารถอธิบายได้' }
+        ]
+      },
+      {
+        id: 'p3q5',
+        label: 'Part 3: Service คำถามที่ 5',
+        title: 'Service Ceremony Module 4 : แจ้งให้ลูกค้าประเมินการให้บริการผ่าน Email (NPS)',
+        maxScore: 5,
+        scores: [0, 5],
+        method: 'สังเกตพฤติกรรมการขายจริงกับลูกค้า/ถามคำถามจำลองสถานการณ์ (กรณีไม่มีลูกค้า)',
+        criteria: [
+          { score: 5, text: 'มีการเชิญชวนลูกค้าร่วมทำแบบประเมินหลังการให้บริการ พร้อมอธิบายขั้นตอนหรือเหตุผลให้ลูกค้าเข้าใจ' },
+          { score: 0, text: 'ไม่มีการเชิญชวน หรือไม่ทราบเกี่ยวกับการประเมิน NPS เลย' }
+        ]
+      },
+      {
+        id: 'p3q6',
+        label: 'Part 3: Service คำถามที่ 6',
+        title: 'พนักงานมี Central App และ T1 App',
+        maxScore: 5,
+        scores: [0, 5],
+        method: 'ตรวจสอบจากมือถือพนักงาน และให้แนะนำการใช้งาน เช่น การสั่งซื้อสินค้า และการเก็บคูปอง',
+        criteria: [
+          { score: 5, text: 'มี App Central App และ T1 App โดยต้องเป็นเวอร์ชั่นปัจจุบัน และ Login พร้อมใช้งาน และสามารถแนะนำการใช้งานได้' },
+          { score: 0, text: 'มี App ไม่ครบ หรือมีแต่ไม่สามารถใช้งานได้ เช่น ยังไม่ล็อกอิน แอปไม่อัปเดต หรือไม่สามารถแนะนำการใช้งานได้' }
+        ]
+      }
+    ]
+  },
+  {
+    id: 'p4', name: 'Part 4: Store and VM', color: '#059669',
+    questions: [
+      {
+        id: 'p4q1',
+        label: 'Part 4: Store and VM คำถามที่ 1',
+        title: 'สินค้าถูกจัดวางโชว์ ตามหลัก VM (ป้ายโปรโมชั่น ป้ายราคา รีดเสื้อผ้า ผูกเชือกรองเท้า Bag filler)',
+        maxScore: 5,
+        scores: [0, 5],
+        method: 'ตรวจการโชว์สินค้าบริเวณพื้นที่ขาย',
+        criteria: [
+          { score: 5, text: 'ป้ายโปรโมชั่น ป้ายราคา รีดเสื้อผ้า ผูกเชือกรองเท้า Bag filler ถูกต้องเรียบร้อย' },
+          { score: 0, text: 'มีจุดบกพร่อง 3 จุดขึ้นไป' }
+        ]
+      },
+      {
+        id: 'p4q2',
+        label: 'Part 4: Store and VM คำถามที่ 2',
+        title: 'ความสะอาดเรียบร้อย ของบริเวณพื้นที่ขาย',
+        maxScore: 5,
+        scores: [0, 5],
+        method: 'สำรวจพื้นที่ขายทั้งหมด รวมถึงใต้โต๊ะหรือมุมอับสายตา โดยเน้นเรื่องความสะอาดของพื้น ชั้นวาง อุปกรณ์ VM ต่างๆ',
+        criteria: [
+          { score: 5, text: 'พื้นที่ขายและอุปกรณ์โชว์สินค้ามีความสะอาด ไม่มีฝุ่น คราบ สกปรก หรือขยะตกค้าง และถูกจัดวางอย่างเป็นระเบียบ' },
+          { score: 0, text: 'พบจุดสกปรก เช่น ฝุ่น เศษขยะ คราบบนพื้นหรืออุปกรณ์ต่างๆ หรือพบการวางสิ่งของไม่เป็นระเบียบ' }
+        ]
+      },
+      {
+        id: 'p4q3',
+        label: 'Part 4: Store and VM คำถามที่ 3',
+        title: 'เฟอร์นิเจอร์ อุปกรณ์วางสินค้า และหุ่น มีความเรียบร้อยและอยู่ในสภาพสมบูรณ์',
+        maxScore: 5,
+        scores: [0, 5],
+        method: 'ตรวจเฟอร์นิเจอร์และอุปกรณ์วางสินค้า และตรวจหลักฐานการแจ้งซ่อม (ถ้ามี)',
+        criteria: [
+          { score: 5, text: 'เฟอร์นิเจอร์และอุปกรณ์อยู่ในสภาพสมบูรณ์ ไม่มีความเสียหาย และมีการตรวจสอบสม่ำเสมอ หากพบปัญหา มีหลักฐานการแจ้งซ่อม' },
+          { score: 0, text: 'พบอุปกรณ์ที่เสียหาย เช่น หุ่นแตก หัวหุ่นหลุด ชั้นวางมีตำหนิชัดเจน และไม่มีหลักฐานการแจ้งซ่อม' }
+        ]
+      }
+    ]
+  },
+  {
+    id: 'p5', name: 'Part 5: Stock', color: '#d97706',
+    questions: [
+      {
+        id: 'p5q1',
+        label: 'Part 5: Stock คำถามที่ 1',
+        title: 'สามารถใช้โปรแกรม Slick ในการหาสินค้าได้',
+        maxScore: 5,
+        scores: [0, 5],
+        method: 'ให้พนักงานสาธิตการค้นหาสินค้า 1 รายการผ่านระบบ Slick โดยแสดงขั้นตอนและผลลัพธ์',
+        criteria: [
+          { score: 5, text: 'สามารถค้นหาสินค้าผ่านระบบ Slick ได้อย่างถูกต้อง และทราบวิธีดูจำนวนสินค้าคงเหลือในระบบ และเช็คสินค้าต่างสาขา' },
+          { score: 0, text: 'สามารถใช้ระบบ Slick ได้แต่ไม่ครบทุกฟังก์ชั่น' }
+        ]
+      },
+      {
+        id: 'p5q2',
+        label: 'Part 5: Stock คำถามที่ 2',
+        title: 'มีประวัติการขอโอนสินค้าต่างสาขาทุกเดือน',
+        maxScore: 5,
+        scores: [0, 5],
+        method: 'ตรวจสอบประวัติการโอนสินค้าระหว่างสาขาย้อนหลัง 3 เดือนจากระบบ หรือจากแฟ้มเอกสารที่ร้านจัดเก็บไว้',
+        criteria: [
+          { score: 5, text: 'มีเอกสารหรือหลักฐาน ที่แสดงรายการโอนสินค้าจากต่างสาขาทุกเดือน' },
+          { score: 0, text: 'ไม่พบประวัติหรือหลักฐานการโอนสินค้าต่างสาขา' }
+        ]
+      },
+      {
+        id: 'p5q3',
+        label: 'Part 5: Stock คำถามที่ 3',
+        title: 'SMM/DSM จัดทำเอกสาร Markdown Form ทุกเดือน',
+        maxScore: 5,
+        scores: [0, 5],
+        method: 'ตรวจสอบเอกสาร Markdown Form ย้อนหลัง 3 เดือน',
+        criteria: [
+          { score: 5, text: 'มีการจัดทำ Markdown Form ทุกเดือน หรือมีหลักฐานการแจ้งสินค้าชำรุด' },
+          { score: 0, text: 'พบสินค้าสภาพไม่พร้อมขายแต่ไม่พบเอกสาร Markdown Form' }
+        ]
+      },
+      {
+        id: 'p5q4',
+        label: 'Part 5: Stock คำถามที่ 4',
+        title: 'ระยะเวลาในการหยิบสินค้าจากสต็อค',
+        maxScore: 5,
+        scores: [0, 5],
+        method: 'ทดลองให้พนักงานหยิบสินค้าจากสต็อคจำนวน 1 ชิ้น และจับเวลา',
+        criteria: [
+          { score: 5, text: 'สามารถหยิบสินค้า 1 ชิ้น จากสต็อค มายังพื้นที่ขาย ภายในเวลา 5 นาที' },
+          { score: 0, text: 'ใช้เวลาในการหยิบสินค้าจากสต็อค มายังพื้นที่ขาย นานกว่า 5 นาที' }
+        ]
+      }
+    ]
+  }
+];
+
+const ALL_QUESTIONS = PARTS.flatMap(p => p.questions);
+const STEPS = ['info', 'p1', 'p2', 'p3', 'p4', 'p5', 'review'];
+const STEP_NAMES = ['ข้อมูลทั่วไป', 'Part 1: Sales', 'Part 2: Staff', 'Part 3: Service', 'Part 4: Store & VM', 'Part 5: Stock', 'สรุป'];
+
+// ===================== APP STATE =====================
+let currentAuditId = null;
+let currentStep = 0;
+let formData = {};
+let photoTargetQId = null; // legacy — kept for safety
+let gaugeChart = null;
+
+// ===================== STORAGE =====================
+function getAudits() {
+  try { return JSON.parse(localStorage.getItem('audits') || '[]'); } catch { return []; }
+}
+function saveAudits(audits) { localStorage.setItem('audits', JSON.stringify(audits)); }
+function getAudit(id) { return getAudits().find(a => a.id === id); }
+
+// ===================== DRAFT (camera-safe persistence) =====================
+const DRAFT_KEY = 'auditFormDraft';
+
+function saveDraft() {
+  if (currentStep < 0) return;
+  try {
+    localStorage.setItem(DRAFT_KEY, JSON.stringify({ formData, currentStep }));
+  } catch(e) {
+    // localStorage full — try saving without photos
+    try {
+      const slim = { ...formData, photos: {} };
+      localStorage.setItem(DRAFT_KEY, JSON.stringify({ formData: slim, currentStep }));
+      console.warn('Draft saved without photos (storage full)');
+    } catch(_) {}
+  }
+}
+
+function loadDraft() {
+  try {
+    const raw = localStorage.getItem(DRAFT_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch(e) { return null; }
+}
+
+function clearDraft() {
+  localStorage.removeItem(DRAFT_KEY);
+}
+
+// Check on app start whether there's an interrupted form session
+function checkForDraft() {
+  const draft = loadDraft();
+  if (!draft || !draft.formData) return;
+  // Only restore if there's meaningful data
+  const hasAnswers = Object.keys(draft.formData.answers || {}).length > 0;
+  const hasInfo    = !!(draft.formData.info?.auditor || draft.formData.info?.site);
+  const hasPhotos  = Object.keys(draft.formData.photos || {}).some(k => (draft.formData.photos[k]||[]).length > 0);
+  if (!hasAnswers && !hasInfo && !hasPhotos) return;
+
+  // Show a restore banner instead of a blocking confirm
+  const banner = document.createElement('div');
+  banner.id = 'draft-banner';
+  banner.style.cssText = `
+    position:fixed;bottom:90px;left:50%;transform:translateX(-50%);
+    width:calc(100% - 32px);max-width:398px;
+    background:#1e40af;color:white;border-radius:14px;
+    padding:14px 16px;display:flex;align-items:center;
+    justify-content:space-between;gap:10px;z-index:500;
+    box-shadow:0 4px 20px rgba(0,0,0,0.25);font-size:14px;font-weight:600;
+  `;
+  const site = draft.formData.info?.site || '';
+  const step = STEP_NAMES[draft.currentStep] || '';
+  banner.innerHTML = `
+    <div>
+      <div style="font-size:13px;opacity:0.85;margin-bottom:2px;">พบข้อมูลค้างจากเซสชั่นก่อน</div>
+      <div>${site ? site + ' — ' : ''}${step}</div>
+    </div>
+    <div style="display:flex;gap:8px;flex-shrink:0">
+      <button onclick="dismissDraft()" style="background:rgba(255,255,255,0.2);border:none;color:white;padding:6px 12px;border-radius:8px;cursor:pointer;font-size:13px;">ลบทิ้ง</button>
+      <button onclick="restoreDraft()" style="background:white;border:none;color:#1e40af;padding:6px 12px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:700;">ทำต่อ</button>
+    </div>
+  `;
+  document.body.appendChild(banner);
+}
+
+function restoreDraft() {
+  const draft = loadDraft();
+  if (!draft) return;
+  document.getElementById('draft-banner')?.remove();
+  formData = draft.formData;
+  // ensure sub-objects exist
+  formData.info    = formData.info    || {};
+  formData.answers = formData.answers || {};
+  formData.photos  = formData.photos  || {};
+  formData.notes   = formData.notes   || {};
+  currentStep = draft.currentStep || 0;
+  renderFormStep();
+  showView('form');
+}
+
+function dismissDraft() {
+  clearDraft();
+  document.getElementById('draft-banner')?.remove();
+}
+
+// ===================== VIEW ROUTING =====================
+// showView defined in sync section below
+
+// ===================== HOME =====================
+function renderHome() {
+  const audits = getAudits().sort((a, b) => b.createdAt - a.createdAt);
+  const statTotal = document.getElementById('stat-total');
+  const statAvg = document.getElementById('stat-avg');
+  const statMonth = document.getElementById('stat-month');
+  statTotal.textContent = audits.length;
+  const now = new Date();
+  const monthAudits = audits.filter(a => {
+    const d = new Date(a.createdAt);
+    return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+  });
+  statMonth.textContent = monthAudits.length;
+  if (audits.length > 0) {
+    const avg = audits.reduce((s, a) => s + a.overallPct, 0) / audits.length;
+    statAvg.textContent = Math.round(avg) + '%';
+  } else {
+    statAvg.textContent = '-';
+  }
+  const list = document.getElementById('audit-list');
+  const empty = document.getElementById('empty-state');
+  if (audits.length === 0) {
+    empty.style.display = 'block';
+    list.innerHTML = '';
+    list.appendChild(empty);
+    return;
+  }
+  empty.style.display = 'none';
+  list.innerHTML = '';
+  audits.forEach(audit => {
+    const card = document.createElement('div');
+    card.className = 'audit-card';
+    card.onclick = () => viewAudit(audit.id);
+    const pct = audit.overallPct;
+    const cls = pct >= 80 ? 'good' : pct >= 60 ? 'ok' : 'bad';
+    const d = new Date(audit.createdAt);
+    const dateStr = d.toLocaleDateString('th-TH', { day: '2-digit', month: 'short', year: '2-digit' });
+    const timeStr = d.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
+    card.innerHTML = `
+      <div class="audit-card-top">
+        <div class="audit-card-title">${esc(audit.info.site || 'ไม่ระบุสาขา')}</div>
+        <div class="score-badge ${cls}">${pct.toFixed(1)}%</div>
+      </div>
+      <div class="audit-card-meta">
+        <span>👤 ${esc(audit.info.auditor || 'ไม่ระบุ')}</span>
+        <span>🏷️ ${esc(audit.info.brand || 'ไม่ระบุ')}</span>
+        <span>📅 ${dateStr} ${timeStr}</span>
+      </div>
+    `;
+    list.appendChild(card);
+  });
+}
+
+// ===================== NEW AUDIT =====================
+function startNewAudit() {
+  clearDraft(); // discard any old draft
+  document.getElementById('draft-banner')?.remove();
+  formData = { info: {}, answers: {}, photos: {}, notes: {} };
+  currentStep = 0;
+  renderFormStep();
+  showView('form');
+}
+
+function confirmLeaveForm() {
+  if (Object.keys(formData.answers).length > 0 || Object.keys(formData.photos).length > 0) {
+    if (!confirm('ข้อมูลที่กรอกจะหายไป ต้องการออกจากหน้านี้?')) return;
+  }
+  clearDraft();
+  showView('home');
+}
+
+function renderFormStep() {
+  const container = document.getElementById('form-steps');
+  container.innerHTML = '';
+  const total = STEPS.length;
+  const pct = ((currentStep) / (total - 1)) * 100;
+  document.getElementById('progress-fill').style.width = pct + '%';
+  document.getElementById('progress-text').textContent = STEP_NAMES[currentStep];
+  document.getElementById('progress-step').textContent = `${currentStep + 1} / ${total}`;
+
+  // Step dots
+  const dots = document.getElementById('step-dots');
+  dots.innerHTML = '';
+  STEPS.forEach((_, i) => {
+    const dot = document.createElement('div');
+    dot.className = 'step-dot' + (i === currentStep ? ' active' : i < currentStep ? ' done' : '');
+    dots.appendChild(dot);
+  });
+
+  // Nav buttons
+  document.getElementById('btn-prev').style.display = currentStep === 0 ? 'none' : '';
+  const isLast = currentStep === STEPS.length - 1;
+  document.getElementById('btn-next').style.display = isLast ? 'none' : '';
+  document.getElementById('btn-submit').style.display = isLast ? '' : 'none';
+
+  if (currentStep === 0) renderInfoStep(container);
+  else if (currentStep >= 1 && currentStep <= 5) renderPartStep(container, PARTS[currentStep - 1]);
+  else renderReviewStep(container);
+}
+
+function renderInfoStep(container) {
+  const info = formData.info;
+  container.innerHTML = `
+    <div class="form-info-section">
+      <div class="form-group">
+        <label>ชื่อ Auditor <span>(จำเป็น)</span></label>
+        <input class="form-input" id="fi-auditor" placeholder="ระบุชื่อผู้ตรวจ" value="${esc(info.auditor||'')}" oninput="formData.info.auditor=this.value">
+      </div>
+      <div class="form-group">
+        <label>สาขา / Site <span>(จำเป็น)</span></label>
+        <input class="form-input" id="fi-site" placeholder="เช่น CL - Chidlom" value="${esc(info.site||'')}" oninput="formData.info.site=this.value">
+      </div>
+      <div class="form-group">
+        <label>แบรนด์ <span>(ไม่บังคับ)</span></label>
+        <select class="form-input" id="fi-brand" onchange="formData.info.brand=this.value">
+          <option value="">-- เลือกแบรนด์ --</option>
+          ${['A.P.C.','Adidas','Alice & Olivia','Augustinus Bader','Club Monaco','Evisu Gene','Kenzo','Luxe Kids','Mach & Mach','Maje','Mardi Mercredi (Actif)','Mardi Mercredi (Les petits)','Mardi Mercredi (Mainline)','Martin Kim','New Balance','Nike','Officine Universelle Buly','Sandro','Scotch & Soda','Sfera','Sporty & Rich','Staccato','The Collective Men','The Collective Women Vintage','Theory','Vivienne Westwood'].map(b=>`<option value="${b}" ${info.brand===b?'selected':''}>${b}</option>`).join('')}
+        </select>
+      </div>
+      <div class="form-group">
+        <label>วันที่ตรวจ</label>
+        <input class="form-input" type="date" id="fi-date" value="${info.date||todayStr()}" oninput="formData.info.date=this.value">
+      </div>
+      <div class="form-group">
+        <label>สรุปภาพรวม <span>(ไม่บังคับ)</span></label>
+        <textarea class="form-input" id="fi-summary" placeholder="บันทึกข้อสังเกต ภาพรวมการตรวจ..." oninput="formData.info.summary=this.value">${esc(info.summary||'')}</textarea>
+      </div>
+      <div class="form-group">
+        <label>Sign Off Name <span>(ไม่บังคับ)</span></label>
+        <input class="form-input" id="fi-signoff" placeholder="ชื่อผู้รับทราบผลการตรวจ" value="${esc(info.signoff||'')}" oninput="formData.info.signoff=this.value">
+      </div>
+    </div>
+    <div class="divider"></div>
+    <div style="padding:16px;">
+      <div class="photo-label">Photo of Sign Off Person <span>(ไม่บังคับ, สูงสุด 5 รูป)</span></div>
+      <div class="photo-grid" id="photos-signoff"></div>
+    </div>
+  `;
+  renderPhotoArea('signoff', 5);
+}
+
+function renderPartStep(container, part) {
+  let html = `<div class="part-header"><h3>${part.name}</h3></div>`;
+  part.questions.forEach(q => {
+    const has10 = q.scores.includes(10);
+    const scoreClass = has10 ? 'has-10' : 'no-10';
+    const scores = [...q.scores, 'N/A'];
+    const btns = scores.map(s => {
+      const val = s === 'N/A' ? 'na' : s;
+      const cur = formData.answers[q.id];
+      const selClass = cur === val ? `selected-${val}` : '';
+      return `<button class="score-btn ${selClass}" onclick="selectScore('${q.id}', '${val}')">${s}</button>`;
+    }).join('');
+    html += `
+      <div class="question-block" id="qblock-${q.id}">
+        <div class="question-title"><span class="part-label">${q.label} : </span>${q.title} (${q.maxScore} คะแนน)</div>
+        <div class="question-criteria">
+          <div class="method">วิธีการวัดผล: ${q.method}</div>
+          <ul>${q.criteria.map(c => `<li>${c.score} คะแนน: ${c.text}</li>`).join('')}</ul>
+        </div>
+        <div class="score-buttons ${scoreClass}" id="scores-${q.id}">${btns}</div>
+        <div class="photo-section">
+          <div class="photo-label">แนบรูป <span>(ไม่บังคับ, สูงสุด 10 รูป)</span></div>
+          <div class="photo-grid" id="photos-${q.id}"></div>
+        </div>
+        <div>
+          <div class="notes-label">บันทึกเพิ่มเติม <span style="font-weight:400;color:var(--gray3)">(ไม่บังคับ)</span></div>
+          <textarea class="notes-input" placeholder="บันทึกข้อสังเกตหรือรายละเอียดเพิ่มเติม..." oninput="formData.notes['${q.id}']=this.value">${esc(formData.notes[q.id]||'')}</textarea>
+        </div>
+      </div>
+    `;
+  });
+  container.innerHTML = html;
+  part.questions.forEach(q => renderPhotoArea(q.id, 10));
+}
+
+function renderReviewStep(container) {
+  const scores = calcScores();
+  container.innerHTML = `
+    <div style="padding:16px;">
+      <div style="font-size:16px;font-weight:700;margin-bottom:12px;">สรุปผลก่อนบันทึก</div>
+      <div style="background:var(--gray);border-radius:12px;padding:16px;margin-bottom:16px;">
+        <div style="font-size:28px;font-weight:800;color:${scoreColor(scores.overall)};text-align:center">${scores.overall.toFixed(2)}%</div>
+        <div style="text-align:center;font-size:13px;color:var(--gray3);margin-bottom:12px;">คะแนนรวม</div>
+        ${PARTS.map((p, i) => `
+          <div class="part-row">
+            <div class="part-row-label">
+              <span class="part-row-name">${p.name}</span>
+              <span class="part-row-pct ${pctClass(scores.parts[i])}">${scores.parts[i].toFixed(1)}%</span>
+            </div>
+            <div class="part-bar"><div class="part-bar-fill ${pctClass(scores.parts[i])}" style="width:${scores.parts[i]}%"></div></div>
+          </div>
+        `).join('')}
+      </div>
+      <div style="font-size:13px;color:var(--text2);background:var(--gray);border-radius:10px;padding:12px;">
+        <b>ข้อมูลการตรวจ:</b><br>
+        👤 ${esc(formData.info.auditor||'ไม่ระบุ')} &nbsp;|&nbsp;
+        🏬 ${esc(formData.info.site||'ไม่ระบุ')} &nbsp;|&nbsp;
+        🏷️ ${esc(formData.info.brand||'ไม่ระบุ')} &nbsp;|&nbsp;
+        📅 ${esc(formData.info.date||todayStr())}
+      </div>
+    </div>
+  `;
+}
+
+function selectScore(qid, val) {
+  formData.answers[qid] = val;
+  const container = document.getElementById('scores-' + qid);
+  if (!container) return;
+  container.querySelectorAll('.score-btn').forEach(btn => {
+    btn.className = 'score-btn';
+    const btnVal = btn.textContent.trim() === 'N/A' ? 'na' : btn.textContent.trim();
+    if (btnVal === val) btn.className = `score-btn selected-${val}`;
+  });
+  saveDraft(); // persist answer immediately
+}
+
+// Photo management
+function renderPhotoArea(id, max) {
+  const grid = document.getElementById('photos-' + id);
+  if (!grid) return;
+  const photos = formData.photos[id] || [];
+  grid.innerHTML = '';
+  photos.forEach((src, idx) => {
+    const wrap = document.createElement('div');
+    wrap.className = 'photo-thumb-wrap';
+    wrap.innerHTML = `
+      <img src="${src}" class="photo-thumb">
+      <button class="photo-remove" onclick="removePhoto('${id}',${idx})">✕</button>
+    `;
+    grid.appendChild(wrap);
+  });
+  if (photos.length < max) {
+    const addBtn = document.createElement('div');
+    addBtn.className = 'photo-add-btn';
+    addBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>`;
+    addBtn.onclick = () => openPhotoInput(id, max);
+    grid.appendChild(addBtn);
+  }
+}
+
+// ── Photo source action sheet ──────────────────────────────
+let _photoTargetId  = null;
+let _photoTargetMax = 10;
+
+function openPhotoInput(id, max) {
+  captureInfoToFormData();
+  saveDraft();
+  _photoTargetId  = id;
+  _photoTargetMax = max;
+  document.getElementById('action-sheet-bg').classList.add('open');
+}
+
+function closeActionSheet(e) {
+  if (e && e.target !== document.getElementById('action-sheet-bg')) return;
+  document.getElementById('action-sheet-bg').classList.remove('open');
+}
+
+// ── Gallery picker (safe: doesn't leave the page) ──────────
+function openGalleryPicker() {
+  closeActionSheet();
+  const id  = _photoTargetId;
+  const max = _photoTargetMax;
+  const inp = document.getElementById('file-input');
+  inp.value = '';
+  inp.onchange = async (e) => {
+    const files = Array.from(e.target.files);
+    if (!formData.photos[id]) formData.photos[id] = [];
+    const remaining = max - formData.photos[id].length;
+    for (const f of files.slice(0, remaining)) {
+      formData.photos[id].push(await fileToCompressedBase64(f));
+    }
+    saveDraft();
+    renderPhotoArea(id, max);
+  };
+  inp.click();
+}
+
+// ── In-App Camera (getUserMedia — stays on page, no reload) ─
+let _camStream     = null;
+let _camFacing     = 'environment';
+let _capturedB64   = null;
+
+async function openInAppCamera() {
+  closeActionSheet();
+  const supported = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+  if (!supported) {
+    showToast('กล้องในแอปไม่รองรับ browser นี้ — ใช้แกลเลอรี่แทน');
+    openGalleryPicker();
+    return;
+  }
+  await startCameraStream();
+}
+
+async function startCameraStream() {
+  // Stop old stream first
+  if (_camStream) _camStream.getTracks().forEach(t => t.stop());
+  try {
+    _camStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: _camFacing, width: { ideal: 1920 }, height: { ideal: 1080 } },
+      audio: false
+    });
+    const video = document.getElementById('cam-video');
+    video.srcObject = _camStream;
+    document.getElementById('cam-overlay').classList.add('open');
+  } catch(err) {
+    const msg = err.name === 'NotAllowedError'
+      ? 'กรุณาอนุญาตการใช้กล้องในการตั้งค่า browser'
+      : 'ไม่สามารถเปิดกล้องได้: ' + err.message;
+    showToast(msg);
+    openGalleryPicker();
+  }
+}
+
+function closeCamera() {
+  if (_camStream) _camStream.getTracks().forEach(t => t.stop());
+  _camStream = null;
+  document.getElementById('cam-overlay').classList.remove('open');
+}
+
+async function flipCamera() {
+  _camFacing = _camFacing === 'environment' ? 'user' : 'environment';
+  await startCameraStream();
+}
+
+function capturePhoto() {
+  const video = document.getElementById('cam-video');
+  const canvas = document.createElement('canvas');
+  // Respect actual video dimensions, cap at 1280px
+  let w = video.videoWidth, h = video.videoHeight;
+  const MAX = 1280;
+  if (w > MAX || h > MAX) {
+    if (w >= h) { h = Math.round(h * MAX / w); w = MAX; }
+    else        { w = Math.round(w * MAX / h); h = MAX; }
+  }
+  canvas.width = w; canvas.height = h;
+  canvas.getContext('2d').drawImage(video, 0, 0, w, h);
+  _capturedB64 = canvas.toDataURL('image/jpeg', 0.82);
+  // Show preview for confirm/retake
+  document.getElementById('cam-preview-img').src = _capturedB64;
+  document.getElementById('cam-preview-overlay').classList.add('open');
+}
+
+function retakePhoto() {
+  _capturedB64 = null;
+  document.getElementById('cam-preview-overlay').classList.remove('open');
+}
+
+function usePhoto() {
+  const id  = _photoTargetId;
+  const max = _photoTargetMax;
+  if (!formData.photos[id]) formData.photos[id] = [];
+  if (formData.photos[id].length < max && _capturedB64) {
+    formData.photos[id].push(_capturedB64);
+    saveDraft();
+    renderPhotoArea(id, max);
+  }
+  _capturedB64 = null;
+  document.getElementById('cam-preview-overlay').classList.remove('open');
+  closeCamera();
+}
+
+function removePhoto(id, idx) {
+  formData.photos[id].splice(idx, 1);
+  const max = id === 'signoff' ? 5 : 10;
+  saveDraft();
+  renderPhotoArea(id, max);
+}
+
+// Compress image to max 1024px JPEG 0.75 — keeps files small enough for localStorage
+function fileToCompressedBase64(file, maxPx = 1024, quality = 0.75) {
+  return new Promise(res => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      let w = img.width, h = img.height;
+      if (w > maxPx || h > maxPx) {
+        if (w >= h) { h = Math.round(h * maxPx / w); w = maxPx; }
+        else        { w = Math.round(w * maxPx / h); h = maxPx; }
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      res(canvas.toDataURL('image/jpeg', quality));
+    };
+    img.onerror = () => {
+      // Fallback to original if canvas fails
+      const reader = new FileReader();
+      reader.onload = e => res(e.target.result);
+      reader.readAsDataURL(file);
+    };
+    img.src = url;
+  });
+}
+
+// Flush visible DOM input values into formData (needed before camera opens)
+function captureInfoToFormData() {
+  const a = document.getElementById('fi-auditor');
+  const s = document.getElementById('fi-site');
+  const b = document.getElementById('fi-brand');
+  const d = document.getElementById('fi-date');
+  const su = document.getElementById('fi-summary');
+  const so = document.getElementById('fi-signoff');
+  if (a) formData.info.auditor  = a.value;
+  if (s) formData.info.site     = s.value;
+  if (b) formData.info.brand    = b.value;
+  if (d) formData.info.date     = d.value;
+  if (su) formData.info.summary = su.value;
+  if (so) formData.info.signoff = so.value;
+}
+
+// Navigation
+function nextStep() {
+  if (currentStep === 0) {
+    const auditor = (formData.info.auditor || '').trim();
+    const site = (formData.info.site || '').trim();
+    if (!auditor || !site) { showToast('กรุณาระบุชื่อ Auditor และสาขา'); return; }
+    captureInfoToFormData();
+    formData.info.auditor = formData.info.auditor.trim();
+    formData.info.site    = formData.info.site.trim();
+  }
+  if (currentStep < STEPS.length - 1) {
+    currentStep++;
+    saveDraft(); // persist every step advance
+    renderFormStep();
+    window.scrollTo(0, 0);
+  }
+}
+
+function prevStep() {
+  if (currentStep > 0) {
+    currentStep--;
+    saveDraft();
+    renderFormStep();
+    window.scrollTo(0, 0);
+  }
+}
+
+function submitAudit() {
+  const scores = calcScores();
+  const audit = {
+    id: Date.now().toString(),
+    createdAt: Date.now(),
+    info: { ...formData.info, date: formData.info.date || todayStr() },
+    answers: { ...formData.answers },
+    photos: { ...formData.photos },
+    notes: { ...formData.notes },
+    overallPct: scores.overall,
+    partPcts: scores.parts
+  };
+  const audits = getAudits();
+  audits.push(audit);
+  saveAudits(audits);
+  showToast('บันทึกผลการตรวจเรียบร้อย ✓');
+  setTimeout(() => viewAudit(audit.id), 600);
+}
+
+// ===================== SCORE CALC =====================
+function calcScores() {
+  const parts = PARTS.map(part => {
+    let sum = 0, max = 0;
+    part.questions.forEach(q => {
+      const ans = formData.answers[q.id];
+      if (ans === undefined || ans === null || ans === 'na') return;
+      sum += parseInt(ans);
+      max += q.maxScore;
+    });
+    return max === 0 ? 100 : (sum / max) * 100;
+  });
+  // Overall: weight by answered max
+  let totalSum = 0, totalMax = 0;
+  PARTS.forEach(part => {
+    part.questions.forEach(q => {
+      const ans = formData.answers[q.id];
+      if (ans === undefined || ans === null || ans === 'na') return;
+      totalSum += parseInt(ans);
+      totalMax += q.maxScore;
+    });
+  });
+  const overall = totalMax === 0 ? 0 : (totalSum / totalMax) * 100;
+  return { overall, parts };
+}
+
+function calcScoresFromAudit(audit) {
+  const answers = audit.answers;
+  const parts = PARTS.map(part => {
+    let sum = 0, max = 0;
+    part.questions.forEach(q => {
+      const ans = answers[q.id];
+      if (!ans || ans === 'na') return;
+      sum += parseInt(ans);
+      max += q.maxScore;
+    });
+    return max === 0 ? 100 : (sum / max) * 100;
+  });
+  let totalSum = 0, totalMax = 0;
+  PARTS.forEach(part => {
+    part.questions.forEach(q => {
+      const ans = answers[q.id];
+      if (!ans || ans === 'na') return;
+      totalSum += parseInt(ans);
+      totalMax += q.maxScore;
+    });
+  });
+  const overall = totalMax === 0 ? 0 : (totalSum / totalMax) * 100;
+  return { overall, parts };
+}
+
+// ===================== VIEW RESULT =====================
+function viewAudit(id) {
+  currentAuditId = id;
+  const audit = getAudit(id);
+  if (!audit) return;
+  const scores = calcScoresFromAudit(audit);
+  const d = new Date(audit.createdAt);
+  const dateStr = d.toLocaleDateString('th-TH', { day: '2-digit', month: 'long', year: 'numeric' });
+  const timeStr = d.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
+  const pct = scores.overall;
+
+  let answerDetail = '';
+  PARTS.forEach((part, pi) => {
+    answerDetail += `<div class="answer-section"><h3>${part.name}</h3>`;
+    part.questions.forEach(q => {
+      const ans = audit.answers[q.id];
+      const scoreLabel = ans === 'na' ? 'N/A' : (ans !== undefined ? ans : 'ไม่ได้ตอบ');
+      const cls = ans === 'na' ? 'sna' : ans === undefined ? 'sna' : parseInt(ans) === 0 ? 's0' : ans === '5' ? 's5' : 's10';
+      const photos = (audit.photos[q.id] || []);
+      const notes = audit.notes[q.id] || '';
+      answerDetail += `
+        <div class="answer-item">
+          <div class="answer-item-label">${q.label}</div>
+          <div style="font-size:12px;color:var(--text2);margin-bottom:6px;">${q.title}</div>
+          <span class="answer-item-score ${cls}">${scoreLabel} คะแนน</span>
+          ${notes ? `<div class="answer-item-notes">📝 ${esc(notes)}</div>` : ''}
+          ${photos.length > 0 ? `<div class="answer-photos">${photos.map(p=>`<img src="${p}">`).join('')}</div>` : ''}
+        </div>`;
+    });
+    answerDetail += `</div>`;
+  });
+
+  const signoffPhotos = (audit.photos['signoff'] || []);
+
+  document.getElementById('result-content').innerHTML = `
+    <div class="result-header">
+      <div class="result-title">Staff Checklist — ${esc(audit.info.site || 'ไม่ระบุ')}</div>
+      <div class="result-badges">
+        <div class="result-badge completed">✓ เสร็จสิ้น</div>
+        <div class="result-badge score-main">⭐ ${pct.toFixed(2)}%</div>
+        ${PARTS.map((p,i) => {
+          const pp = scores.parts[i];
+          const col = pp >= 80 ? '#15803d' : pp >= 60 ? '#a16207' : '#b91c1c';
+          const bg = pp >= 80 ? '#dcfce7' : pp >= 60 ? '#fef9c3' : '#fee2e2';
+          return `<div class="result-badge" style="background:${bg};color:${col}">🏆 ${p.name.split(':')[1]?.trim()||p.name} = ${pp.toFixed(0)}%</div>`;
+        }).join('')}
+      </div>
+      <div class="result-meta">
+        <div class="result-meta-item">
+          <div class="result-meta-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg></div>
+          <div><div class="result-meta-label">Completed by</div><div class="result-meta-value">${esc(audit.info.auditor||'ไม่ระบุ')}</div><div style="font-size:12px;color:var(--gray3)">${dateStr} เวลา ${timeStr}</div></div>
+        </div>
+        <div class="result-meta-item">
+          <div class="result-meta-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg></div>
+          <div><div class="result-meta-label">Site</div><div class="result-meta-value">${esc(audit.info.site||'ไม่ระบุ')}</div></div>
+        </div>
+        ${audit.info.brand ? `<div class="result-meta-item"><div class="result-meta-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg></div><div><div class="result-meta-label">Brand</div><div class="result-meta-value">${esc(audit.info.brand)}</div></div></div>` : ''}
+        ${audit.info.signoff ? `<div class="result-meta-item"><div class="result-meta-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg></div><div><div class="result-meta-label">Sign Off</div><div class="result-meta-value">${esc(audit.info.signoff)}</div></div></div>` : ''}
+        ${audit.info.summary ? `<div class="result-meta-item"><div class="result-meta-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/></svg></div><div><div class="result-meta-label">Summary</div><div class="result-meta-value" style="font-size:13px;font-weight:400">${esc(audit.info.summary)}</div></div></div>` : ''}
+      </div>
+      ${signoffPhotos.length > 0 ? `<div style="margin-top:12px;"><div class="result-meta-label" style="margin-bottom:6px">Photo of Sign Off Person</div><div class="answer-photos">${signoffPhotos.map(p=>`<img src="${p}" style="width:72px;height:72px">`).join('')}</div></div>` : ''}
+    </div>
+    <div class="divider"></div>
+    <div class="score-section">
+      <h3>คะแนน</h3>
+      <div class="gauge-wrap">
+        <div class="gauge-container">
+          <canvas id="gauge-canvas" width="200" height="110"></canvas>
+          <div class="gauge-label">
+            <div class="gauge-pct" style="color:${scoreColor(pct)}">${pct.toFixed(2)}%</div>
+            <div class="gauge-sub">Summary</div>
+          </div>
+        </div>
+      </div>
+      ${PARTS.map((p, i) => {
+        const pp = scores.parts[i];
+        const cls2 = pctClass(pp);
+        return `<div class="part-row">
+          <div class="part-row-label">
+            <span class="part-row-name">${p.name}</span>
+            <span class="part-row-pct ${cls2}">${pp.toFixed(1)}%</span>
+          </div>
+          <div class="part-bar"><div class="part-bar-fill ${cls2}" style="width:${pp}%"></div></div>
+        </div>`;
+      }).join('')}
+    </div>
+    <div class="divider"></div>
+    ${answerDetail}
+    <div class="delete-zone">
+      <button class="btn-delete" onclick="deleteAudit('${id}')">🗑️ ลบการตรวจนี้</button>
+    </div>
+  `;
+
+  showView('result');
+  // Draw gauge after render
+  setTimeout(() => drawGauge(pct), 100);
+}
+
+function drawGauge(pct) {
+  const canvas = document.getElementById('gauge-canvas');
+  if (!canvas) return;
+  if (gaugeChart) { gaugeChart.destroy(); gaugeChart = null; }
+  const color = pct >= 80 ? '#22c55e' : pct >= 60 ? '#f97316' : '#e8192c';
+  gaugeChart = new Chart(canvas, {
+    type: 'doughnut',
+    data: {
+      datasets: [{
+        data: [pct, 100 - pct],
+        backgroundColor: [color, '#e5e5e5'],
+        borderWidth: 0,
+        circumference: 180,
+        rotation: 270
+      }]
+    },
+    options: {
+      responsive: false,
+      cutout: '75%',
+      plugins: { legend: { display: false }, tooltip: { enabled: false } },
+      animation: { duration: 800, easing: 'easeOutQuart' }
+    }
+  });
+}
+
+function deleteAudit(id) {
+  if (!confirm('ต้องการลบการตรวจนี้?')) return;
+  const audits = getAudits().filter(a => a.id !== id);
+  saveAudits(audits);
+  showToast('ลบการตรวจเรียบร้อย');
+  showView('home');
+}
+
+// ===================== EXPORT PDF =====================
+async function exportPDF() {
+  const audit = getAudit(currentAuditId);
+  if (!audit) return;
+  const scores = calcScoresFromAudit(audit);
+  showToast('กำลัง Export PDF...');
+
+  // Build a self-contained printable HTML page
+  const d = new Date(audit.createdAt);
+  const dateStr = d.toLocaleDateString('th-TH', { day: '2-digit', month: 'long', year: 'numeric' });
+  const timeStr = d.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
+
+  function scoreColorPDF(pct) { return pct >= 80 ? '#15803d' : pct >= 60 ? '#a16207' : '#b91c1c'; }
+  function scoreBarPDF(pct) { return pct >= 80 ? '#22c55e' : pct >= 60 ? '#f97316' : '#e8192c'; }
+  function ansClass(ans) { return ans === 'na' || ans === undefined ? '#6b7280' : parseInt(ans) === 0 ? '#b91c1c' : '#15803d'; }
+  function ansLabel(ans) { return ans === 'na' ? 'N/A' : ans !== undefined ? `${ans} คะแนน` : 'ไม่ได้ตอบ'; }
+
+  let detailRows = '';
+  PARTS.forEach(part => {
+    detailRows += `
+      <tr style="background:#e8192c;color:#fff;">
+        <td colspan="3" style="padding:7px 10px;font-weight:700;font-size:13px;">${part.name}</td>
+      </tr>`;
+    part.questions.forEach(q => {
+      const ans = audit.answers[q.id];
+      const notes = audit.notes[q.id] || '';
+      detailRows += `
+        <tr style="border-bottom:1px solid #e5e5e5;">
+          <td style="padding:7px 10px;font-size:12px;line-height:1.5;">${q.label}<br><span style="color:#6b7280;font-size:11px;">${q.title}</span></td>
+          <td style="padding:7px 10px;text-align:center;font-weight:700;color:${ansClass(ans)};font-size:13px;white-space:nowrap;">${ansLabel(ans)}</td>
+          <td style="padding:7px 10px;font-size:11px;color:#555;">${notes}</td>
+        </tr>`;
+    });
+  });
+
+  const partSummaryRows = PARTS.map((p, i) => {
+    const pp = scores.parts[i];
+    return `<tr style="border-bottom:1px solid #e5e5e5;">
+      <td style="padding:7px 10px;font-size:13px;">${p.name}</td>
+      <td style="padding:7px 10px;font-weight:700;color:${scoreColorPDF(pp)};font-size:13px;text-align:right;">
+        ${pp.toFixed(1)}%
+        <div style="height:6px;background:#e5e5e5;border-radius:3px;margin-top:4px;width:120px;margin-left:auto;">
+          <div style="height:6px;background:${scoreBarPDF(pp)};border-radius:3px;width:${pp}%;"></div>
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+
+  const signoffPhotos = (audit.photos['signoff'] || []);
+
+  const htmlContent = `<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700;800&display=swap');
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Sarabun', sans-serif; color: #1a1a1a; background: #fff; padding: 24px; font-size: 13px; }
+  h1 { font-size: 20px; font-weight: 800; color: #e8192c; margin-bottom: 16px; }
+  .meta-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 20px; margin-bottom: 16px; font-size: 13px; }
+  .meta-row { display: flex; gap: 6px; }
+  .meta-label { color: #6b7280; font-size: 12px; }
+  .overall { font-size: 28px; font-weight: 800; color: ${scoreColorPDF(scores.overall)}; margin-bottom: 20px; }
+  table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+  th { background: #e8192c; color: #fff; padding: 8px 10px; text-align: left; font-size: 12px; }
+  .section-title { font-size: 14px; font-weight: 700; color: #e8192c; margin: 20px 0 8px; }
+  .photos { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+  .photos img { width: 80px; height: 80px; object-fit: cover; border-radius: 8px; border: 1px solid #e5e5e5; }
+  .summary-box { background: #f9fafb; border: 1px solid #e5e5e5; border-radius: 8px; padding: 12px; margin-bottom: 16px; font-size: 12px; color: #374151; }
+</style>
+</head>
+<body>
+<h1>Staff Checklist</h1>
+<div class="meta-grid">
+  <div class="meta-row"><span class="meta-label">Site:</span><strong>${audit.info.site || '-'}</strong></div>
+  <div class="meta-row"><span class="meta-label">Auditor:</span><strong>${audit.info.auditor || '-'}</strong></div>
+  <div class="meta-row"><span class="meta-label">Brand:</span><strong>${audit.info.brand || '-'}</strong></div>
+  <div class="meta-row"><span class="meta-label">Date:</span><strong>${audit.info.date || '-'}</strong></div>
+  <div class="meta-row"><span class="meta-label">Sign Off:</span><strong>${audit.info.signoff || '-'}</strong></div>
+  <div class="meta-row"><span class="meta-label">Completed:</span><strong>${dateStr} ${timeStr}</strong></div>
+</div>
+${audit.info.summary ? `<div class="summary-box"><strong>Summary:</strong> ${audit.info.summary}</div>` : ''}
+<div class="overall">คะแนนรวม: ${scores.overall.toFixed(2)}%</div>
+<div class="section-title">สรุปคะแนนแต่ละส่วน</div>
+<table>
+  <thead><tr><th>ส่วน</th><th style="text-align:right;width:180px;">คะแนน (%)</th></tr></thead>
+  <tbody>${partSummaryRows}</tbody>
+</table>
+${signoffPhotos.length > 0 ? `<div class="section-title">Photo of Sign Off Person</div><div class="photos">${signoffPhotos.map(p=>`<img src="${p}">`).join('')}</div><br>` : ''}
+<div class="section-title">รายละเอียดคำตอบ</div>
+<table>
+  <thead><tr><th>คำถาม</th><th style="text-align:center;width:110px;">คะแนน</th><th style="width:160px;">หมายเหตุ</th></tr></thead>
+  <tbody>${detailRows}</tbody>
+</table>
+</body>
+</html>`;
+
+  // Open print window
+  const printWin = window.open('', '_blank', 'width=850,height=1100');
+  if (!printWin) { showToast('กรุณาอนุญาต Popup แล้วลองใหม่'); return; }
+  printWin.document.write(htmlContent);
+  printWin.document.close();
+  printWin.onload = () => {
+    setTimeout(() => {
+      printWin.focus();
+      printWin.print();
+    }, 800);
+  };
+  showToast('หน้าต่าง PDF เปิดแล้ว — กด Save as PDF');
+}
+
+// ===================== EXPORT EXCEL =====================
+function exportExcel() {
+  const audit = getAudit(currentAuditId);
+  if (!audit) return;
+  const scores = calcScoresFromAudit(audit);
+
+  const wb = XLSX.utils.book_new();
+
+  // Sheet 1: Summary
+  const summaryData = [
+    ['Staff Checklist'],
+    [],
+    ['Site', audit.info.site || ''],
+    ['Auditor', audit.info.auditor || ''],
+    ['Brand', audit.info.brand || ''],
+    ['Date', audit.info.date || ''],
+    ['Sign Off', audit.info.signoff || ''],
+    ['Summary', audit.info.summary || ''],
+    [],
+    ['Overall Score (%)', scores.overall.toFixed(2)],
+    [],
+    ['ส่วน', 'คะแนน (%)'],
+    ...PARTS.map((p, i) => [p.name, scores.parts[i].toFixed(1)])
+  ];
+  const ws1 = XLSX.utils.aoa_to_sheet(summaryData);
+  ws1['!cols'] = [{ wch: 25 }, { wch: 20 }];
+  XLSX.utils.book_append_sheet(wb, ws1, 'Summary');
+
+  // Sheet 2: Detail
+  const detailData = [
+    ['Part', 'คำถาม', 'หัวข้อ', 'คะแนนที่ได้', 'คะแนนสูงสุด', 'หมายเหตุ']
+  ];
+  PARTS.forEach(part => {
+    part.questions.forEach(q => {
+      const ans = audit.answers[q.id];
+      const scoreVal = ans === 'na' ? 'N/A' : (ans !== undefined ? parseInt(ans) : '');
+      detailData.push([
+        part.name,
+        q.label,
+        q.title,
+        scoreVal,
+        q.maxScore,
+        audit.notes[q.id] || ''
+      ]);
+    });
+  });
+  const ws2 = XLSX.utils.aoa_to_sheet(detailData);
+  ws2['!cols'] = [{ wch: 20 }, { wch: 25 }, { wch: 60 }, { wch: 12 }, { wch: 12 }, { wch: 40 }];
+  XLSX.utils.book_append_sheet(wb, ws2, 'Detail');
+
+  const filename = `OPT_Staff_Checklist_${(audit.info.site||'').replace(/\s+/g,'_')}_${audit.info.date||'date'}.xlsx`;
+  XLSX.writeFile(wb, filename);
+  showToast('Export Excel เรียบร้อย');
+}
+
+// ===================== UTILITIES =====================
+function esc(s) {
+  if (!s) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function todayStr() {
+  return new Date().toISOString().slice(0, 10);
+}
+function scoreColor(pct) {
+  return pct >= 80 ? '#15803d' : pct >= 60 ? '#a16207' : '#b91c1c';
+}
+function pctClass(pct) {
+  return pct >= 80 ? 'good' : pct >= 60 ? 'ok' : 'bad';
+}
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+// ===================== GOOGLE SHEETS SYNC =====================
+const SHEETS_URL_KEY = 'sheetsWebAppUrl';
+const LAST_SYNC_KEY  = 'lastSyncAt';
+
+function getSheetsUrl() { return localStorage.getItem(SHEETS_URL_KEY) || ''; }
+function setSheetsUrl(url) { localStorage.setItem(SHEETS_URL_KEY, url); }
+
+// --- Settings view ---
+function showView(name) {
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.getElementById('view-' + name).classList.add('active');
+  if (name === 'home') renderHome();
+  if (name === 'settings') renderSettingsView();
+  window.scrollTo(0, 0);
+}
+
+function renderSettingsView() {
+  const url = getSheetsUrl();
+  const inp = document.getElementById('sheets-url-input');
+  const disp = document.getElementById('saved-url-display');
+  const card = document.getElementById('sync-status-card');
+  if (inp) inp.value = url;
+  if (url && disp) {
+    disp.style.display = 'block';
+    disp.textContent = url;
+  }
+  if (card) card.style.display = url ? '' : 'none';
+}
+
+function saveSheetURL() {
+  const inp = document.getElementById('sheets-url-input');
+  const url = (inp?.value || '').trim();
+  if (!url.startsWith('https://script.google.com/macros/s/')) {
+    showToast('URL ไม่ถูกต้อง — ต้องขึ้นต้นด้วย https://script.google.com/macros/s/');
+    return;
+  }
+  setSheetsUrl(url);
+  const disp = document.getElementById('saved-url-display');
+  if (disp) { disp.style.display = 'block'; disp.textContent = url; }
+  const card = document.getElementById('sync-status-card');
+  if (card) card.style.display = '';
+  showToast('บันทึก URL เรียบร้อย ✓');
+  updateSyncBadge('idle');
+  testConnection();
+}
+
+// --- Badge state ---
+function updateSyncBadge(state, label) {
+  const badge = document.getElementById('sync-badge');
+  const icon  = document.getElementById('sync-icon');
+  const lbl   = document.getElementById('sync-label');
+  if (!badge) return;
+  badge.className = 'sync-badge';
+  if (icon) icon.classList.remove('spinning');
+  if (state === 'syncing') {
+    badge.classList.add('syncing');
+    if (icon) icon.classList.add('spinning');
+    if (lbl) lbl.textContent = 'Syncing...';
+  } else if (state === 'synced') {
+    badge.classList.add('synced');
+    if (lbl) lbl.textContent = label || 'Synced ✓';
+  } else if (state === 'error') {
+    badge.classList.add('offline');
+    if (lbl) lbl.textContent = 'Offline';
+  } else {
+    if (lbl) lbl.textContent = getSheetsUrl() ? 'Sync' : 'ตั้งค่า';
+  }
+}
+
+// --- Core fetch (JSONP workaround for CORS) ---
+function sheetsRequest(params) {
+  return new Promise((resolve, reject) => {
+    const url = getSheetsUrl();
+    if (!url) return reject(new Error('No URL'));
+    const cbName = '__gs_cb_' + Date.now();
+    const script = document.createElement('script');
+    // Apps Script Web App supports JSONP via callback param
+    const qp = new URLSearchParams({ ...params, callback: cbName });
+    script.src = url + '?' + qp.toString();
+    script.onerror = () => { delete window[cbName]; reject(new Error('Network error')); };
+    window[cbName] = (data) => {
+      delete window[cbName];
+      document.head.removeChild(script);
+      resolve(data);
+    };
+    document.head.appendChild(script);
+    setTimeout(() => {
+      if (window[cbName]) {
+        delete window[cbName];
+        try { document.head.removeChild(script); } catch(_) {}
+        reject(new Error('Timeout'));
+      }
+    }, 15000);
+  });
+}
+
+// POST via fetch with no-cors then GET to verify (Apps Script pattern)
+async function sheetsPost(body) {
+  const url = getSheetsUrl();
+  if (!url) throw new Error('No URL');
+  // Use fetch with mode no-cors (can't read response, but data is written)
+  await fetch(url, {
+    method: 'POST',
+    body: JSON.stringify(body),
+    headers: { 'Content-Type': 'text/plain' }
+  });
+}
+
+// --- Test connection ---
+async function testConnection() {
+  const url = getSheetsUrl();
+  if (!url) return;
+  const statusEl = document.getElementById('sync-status-text');
+  if (statusEl) statusEl.innerHTML = '⏳ กำลังทดสอบ...';
+  updateSyncBadge('syncing');
+  try {
+    const data = await sheetsRequest({ action: 'ping' });
+    if (statusEl) statusEl.innerHTML = '✅ เชื่อมต่อสำเร็จ';
+    updateSyncBadge('synced', 'Connected');
+    showToast('เชื่อมต่อ Google Sheets สำเร็จ ✓');
+  } catch(e) {
+    // JSONP ping may fail on fresh deploy, try a plain GET
+    try {
+      const r = await fetch(url, { method: 'GET' });
+      const j = await r.json();
+      if (j.ok !== false) {
+        if (statusEl) statusEl.innerHTML = '✅ เชื่อมต่อสำเร็จ';
+        updateSyncBadge('synced', 'Connected');
+        showToast('เชื่อมต่อ Google Sheets สำเร็จ ✓');
+        return;
+      }
+    } catch(_) {}
+    if (statusEl) statusEl.innerHTML = `❌ เชื่อมต่อไม่ได้: ${e.message}`;
+    updateSyncBadge('error');
+    showToast('เชื่อมต่อไม่ได้ — ตรวจสอบ URL หรือ permission');
+  }
+}
+
+// --- Pull from Sheets (merge into localStorage) ---
+async function pullFromSheets() {
+  const url = getSheetsUrl();
+  if (!url) return;
+  updateSyncBadge('syncing');
+  try {
+    const r = await fetch(url, { method: 'GET' });
+    const data = await r.json();
+    if (!data.ok) throw new Error(data.error);
+    const remote = data.audits || [];
+    const local  = getAudits();
+    const localMap = Object.fromEntries(local.map(a => [a.id, a]));
+    let merged = 0;
+    remote.forEach(ra => {
+      if (!localMap[ra.id]) {
+        // keep local photos empty — only text data synced
+        local.push({ ...ra, photos: {} });
+        merged++;
+      } else {
+        // remote overwrites non-photo fields
+        const la = localMap[ra.id];
+        Object.assign(la, { ...ra, photos: la.photos });
+      }
+    });
+    saveAudits(local);
+    const ts = new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
+    localStorage.setItem(LAST_SYNC_KEY, ts);
+    updateSyncBadge('synced', `Synced ${ts}`);
+    if (merged > 0) showToast(`ดึงข้อมูลใหม่ ${merged} รายการ`);
+    return true;
+  } catch(e) {
+    updateSyncBadge('error');
+    console.warn('Pull failed:', e.message);
+    return false;
+  }
+}
+
+// --- Push one audit to Sheets ---
+async function pushAudit(audit) {
+  const url = getSheetsUrl();
+  if (!url) return;
+  // Strip photos before sending (save bandwidth/quota)
+  const toSend = { ...audit, photos: {} };
+  try {
+    await fetch(url, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'save', audit: toSend }),
+      headers: { 'Content-Type': 'text/plain' }
+    });
+  } catch(e) {
+    console.warn('Push failed:', e.message);
+  }
+}
+
+// --- Push delete ---
+async function pushDelete(id) {
+  const url = getSheetsUrl();
+  if (!url) return;
+  try {
+    await fetch(url, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'delete', id }),
+      headers: { 'Content-Type': 'text/plain' }
+    });
+  } catch(e) {
+    console.warn('Delete push failed:', e.message);
+  }
+}
+
+// --- Full sync ---
+async function syncNow() {
+  const url = getSheetsUrl();
+  if (!url) { showToast('กรุณาตั้งค่า URL ก่อน'); showView('settings'); return; }
+  updateSyncBadge('syncing');
+  showToast('กำลัง Sync...');
+  // Push all local audits first
+  const local = getAudits();
+  for (const a of local) { await pushAudit(a); }
+  // Then pull
+  await pullFromSheets();
+  renderHome();
+  showToast('Sync เรียบร้อย ✓');
+}
+
+// --- Init sync on load ---
+async function initSync() {
+  const url = getSheetsUrl();
+  const banner = document.getElementById('config-banner');
+  if (!url) {
+    if (banner) banner.style.display = 'flex';
+    updateSyncBadge('idle');
+    return;
+  }
+  if (banner) banner.style.display = 'none';
+  // Auto pull on open
+  await pullFromSheets();
+  renderHome();
+}
+
+// ===================== INIT =====================
+// Patch submitAudit to push after save
+const _submitAuditOriginal = window.submitAudit || submitAudit;
+submitAudit = async function() {
+  const scores = calcScores();
+  const audit = {
+    id: Date.now().toString(),
+    createdAt: Date.now(),
+    info: { ...formData.info, date: formData.info.date || todayStr() },
+    answers: { ...formData.answers },
+    photos: { ...formData.photos },
+    notes: { ...formData.notes },
+    overallPct: scores.overall,
+    partPcts: scores.parts
+  };
+  const audits = getAudits();
+  audits.push(audit);
+  saveAudits(audits);
+  clearDraft(); // *** clear draft after successful submit ***
+  // Push to Sheets in background
+  if (getSheetsUrl()) {
+    updateSyncBadge('syncing');
+    pushAudit(audit).then(() => {
+      const ts = new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
+      updateSyncBadge('synced', `Synced ${ts}`);
+    });
+  }
+  showToast('บันทึกผลการตรวจเรียบร้อย ✓');
+  setTimeout(() => viewAudit(audit.id), 600);
+};
+
+// Patch deleteAudit to also push delete
+const _deleteAuditOriginal = deleteAudit;
+deleteAudit = function(id) {
+  if (!confirm('ต้องการลบการตรวจนี้?')) return;
+  const audits = getAudits().filter(a => a.id !== id);
+  saveAudits(audits);
+  if (getSheetsUrl()) pushDelete(id);
+  showToast('ลบการตรวจเรียบร้อย');
+  showView('home');
+};
+
+renderHome();
+checkForDraft(); // show "continue?" banner if camera interrupted the session
+initSync();
+</script>
+</body>
+</html>
