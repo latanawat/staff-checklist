@@ -620,13 +620,145 @@
     background: var(--gray); padding: 6px 8px; border-radius: 6px;
     margin-top: 4px; font-family: monospace;
   }
+
+  /* ── Login View ── */
+  #view-login {
+    background: linear-gradient(145deg, #e8192c 0%, #a00f1e 100%);
+    min-height: 100vh;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 32px 24px;
+    display: none;
+  }
+  #view-login.active { display: flex; }
+  .login-logo { text-align: center; margin-bottom: 36px; }
+  .login-logo-icon {
+    width: 72px; height: 72px; background: rgba(255,255,255,0.15);
+    border-radius: 20px; margin: 0 auto 16px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .login-logo-icon svg { width: 40px; height: 40px; color: #fff; }
+  .login-logo h1 { color: #fff; font-size: 22px; font-weight: 700; margin-bottom: 4px; }
+  .login-logo p  { color: rgba(255,255,255,0.75); font-size: 13px; }
+  .login-card {
+    background: #fff; border-radius: 20px; padding: 28px 24px;
+    width: 100%; box-shadow: 0 12px 40px rgba(0,0,0,0.25);
+  }
+  .login-card h2 { font-size: 18px; font-weight: 700; color: var(--text); margin-bottom: 4px; }
+  .login-card .login-subtitle { font-size: 13px; color: var(--gray3); margin-bottom: 22px; }
+  .login-error {
+    background: #fee2e2; color: #b91c1c; border-radius: 8px;
+    padding: 10px 12px; font-size: 13px; margin-bottom: 14px; display: none;
+    border: 1px solid #fca5a5;
+  }
+  .btn-login {
+    width: 100%; padding: 15px; border-radius: 12px; border: none;
+    background: var(--red); color: #fff; font-size: 16px; font-weight: 600;
+    cursor: pointer; font-family: inherit; margin-top: 6px;
+    transition: background 0.15s; box-shadow: 0 4px 12px rgba(232,25,44,0.35);
+  }
+  .btn-login:hover:not(:disabled) { background: #c0122a; }
+  .btn-login:disabled { opacity: 0.55; cursor: not-allowed; }
+  .login-footer { text-align: center; margin-top: 20px; font-size: 12px; color: rgba(255,255,255,0.6); }
+  /* logout btn in header */
+  .btn-logout {
+    background: none; border: none; cursor: pointer; padding: 6px;
+    border-radius: 8px; color: var(--gray3); display: flex; align-items: center; gap: 4px;
+    font-size: 12px; font-weight: 600;
+  }
+  .btn-logout:hover { background: var(--gray); color: var(--red); }
+  .btn-logout svg { width: 18px; height: 18px; }
 </style>
 </head>
 <body>
 <div class="app-shell">
 
+  <!-- ========== LOGIN VIEW ========== -->
+  <div id="view-login" class="view active">
+    <div class="login-logo">
+      <div class="login-logo-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/><path d="M12 12v4M10 14h4"/></svg>
+      </div>
+      <h1>Staff Checklist</h1>
+      <p>ระบบตรวจคุณภาพร้านค้า</p>
+    </div>
+    <!-- URL setup card (แสดงเฉพาะครั้งแรก หรือกดแก้) -->
+    <div id="login-url-card" class="login-card" style="margin-bottom:12px;display:none">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+        <h2 style="font-size:15px">ตั้งค่า Google Sheets URL</h2>
+        <button id="btn-url-collapse" onclick="collapseUrlCard()"
+          style="background:none;border:none;cursor:pointer;color:var(--gray3);font-size:12px;padding:2px 6px">
+          ✕ ปิด
+        </button>
+      </div>
+      <p class="login-subtitle" style="margin-bottom:14px">วาง Web App URL จาก Google Apps Script</p>
+      <div class="form-group" style="margin-bottom:10px">
+        <input class="form-input" id="login-url-input" type="url"
+          placeholder="https://script.google.com/macros/s/..."
+          style="font-size:12px"
+          onkeydown="if(event.key==='Enter')saveLoginUrl()">
+      </div>
+      <button class="btn-login" onclick="saveLoginUrl()" style="font-size:14px;padding:12px">
+        บันทึก URL
+      </button>
+    </div>
+
+    <div class="login-card">
+      <h2>เข้าสู่ระบบ</h2>
+      <p class="login-subtitle">กรอก Username และ Password ของคุณ</p>
+      <!-- แสดง URL ที่ตั้งไว้ + ปุ่มแก้ -->
+      <div id="login-url-status" style="display:none;margin-bottom:14px">
+        <div style="display:flex;align-items:center;justify-content:space-between;
+                    background:var(--gray);border-radius:8px;padding:8px 10px">
+          <div style="display:flex;align-items:center;gap:6px;min-width:0">
+            <svg viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2.5"
+                 width="14" height="14" style="flex-shrink:0">
+              <polyline points="20 6 9 17 4 12"/>
+            </svg>
+            <span id="login-url-short" style="font-size:11px;color:var(--gray3);
+                  white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></span>
+          </div>
+          <button onclick="expandUrlCard()"
+            style="background:none;border:none;cursor:pointer;color:#0369a1;
+                   font-size:11px;font-weight:600;white-space:nowrap;margin-left:8px">
+            แก้ไข
+          </button>
+        </div>
+      </div>
+      <!-- แสดง banner ถ้ายังไม่มี URL -->
+      <div id="login-url-missing" style="display:none;margin-bottom:14px">
+        <div style="background:#fffbeb;border:1px solid #fbbf24;border-radius:8px;
+                    padding:10px 12px;display:flex;align-items:center;gap:8px;cursor:pointer"
+             onclick="expandUrlCard()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2"
+               width="16" height="16" style="flex-shrink:0">
+            <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/>
+            <line x1="12" y1="16" x2="12.01" y2="16"/>
+          </svg>
+          <span style="font-size:12px;color:#92400e;font-weight:600">
+            ยังไม่ได้ตั้งค่า URL — คลิกเพื่อตั้งค่า
+          </span>
+        </div>
+      </div>
+      <div id="login-error" class="login-error"></div>
+      <div class="form-group" style="margin-bottom:14px">
+        <label style="font-size:13px;font-weight:600;color:var(--text2);margin-bottom:6px;display:block">Username</label>
+        <input class="form-input" id="login-username" type="text" placeholder="กรอก Username" autocomplete="username"
+          onkeydown="if(event.key==='Enter')document.getElementById('login-password').focus()">
+      </div>
+      <div class="form-group" style="margin-bottom:6px">
+        <label style="font-size:13px;font-weight:600;color:var(--text2);margin-bottom:6px;display:block">Password</label>
+        <input class="form-input" id="login-password" type="password" placeholder="กรอก Password" autocomplete="current-password"
+          onkeydown="if(event.key==='Enter')doLogin()">
+      </div>
+      <button class="btn-login" id="btn-login" onclick="doLogin()">เข้าสู่ระบบ</button>
+    </div>
+    <p class="login-footer">ติดต่อผู้ดูแลระบบหากลืม Username / Password</p>
+  </div>
+
   <!-- ========== HOME VIEW ========== -->
-  <div id="view-home" class="view active">
+  <div id="view-home" class="view">
     <div class="app-header">
       <h1>Staff Checklist</h1>
       <button class="sync-badge" id="sync-badge" onclick="showView('settings')" title="Sync Status">
@@ -640,7 +772,7 @@
     </div>
     <div class="home-hero">
       <h2>ระบบตรวจคุณภาพร้านค้า</h2>
-      <p>บันทึกและติดตามผลการตรวจประเมินสาขา</p>
+      <p id="hero-greeting">บันทึกและติดตามผลการตรวจประเมินสาขา</p>
     </div>
     <div class="home-stats" id="home-stats">
       <div class="stat-card"><div class="stat-num" id="stat-total">0</div><div class="stat-label">การตรวจทั้งหมด</div></div>
@@ -774,6 +906,22 @@
           • รูปภาพยังเก็บในเครื่อง (เพื่อประหยัด quota)<br>
           • ทุกคนที่ใช้ app จะเห็นข้อมูลเดียวกัน<br>
           • ข้อมูลใน Sheet จะถูก sync ลงมาเมื่อเปิด app
+        </div>
+      </div>
+
+      <div class="settings-card" id="logout-card">
+        <h3>👤 ผู้ใช้งาน</h3>
+        <div style="display:flex;align-items:center;justify-content:space-between;">
+          <div>
+            <div id="settings-username" style="font-size:14px;font-weight:600;color:var(--text)"></div>
+            <div style="font-size:12px;color:var(--gray3);margin-top:2px">เข้าสู่ระบบอยู่</div>
+          </div>
+          <button onclick="logout()"
+            style="padding:8px 16px;border-radius:10px;border:1.5px solid #fca5a5;
+                   background:#fff;color:var(--red);font-size:13px;font-weight:600;
+                   cursor:pointer;font-family:inherit;">
+            ออกจากระบบ
+          </button>
         </div>
       </div>
     </div>
@@ -2038,6 +2186,9 @@ function renderSettingsView() {
     disp.textContent = url;
   }
   if (card) card.style.display = url ? '' : 'none';
+  const user = getLoggedInUser();
+  const nameEl = document.getElementById('settings-username');
+  if (nameEl && user) nameEl.textContent = user.name || user.username;
 }
 
 function saveSheetURL() {
@@ -2290,9 +2441,140 @@ deleteAudit = function(id) {
   showView('home');
 };
 
-renderHome();
-checkForDraft(); // show "continue?" banner if camera interrupted the session
-initSync();
+// ===================== LOGIN =====================
+const LOGIN_KEY = 'staffapp_user';
+
+function getLoggedInUser() {
+  try { return JSON.parse(localStorage.getItem(LOGIN_KEY)); } catch { return null; }
+}
+function setLoggedInUser(user) { localStorage.setItem(LOGIN_KEY, JSON.stringify(user)); }
+function clearLoggedInUser()   { localStorage.removeItem(LOGIN_KEY); }
+
+// --- URL card helpers ---
+function renderLoginUrlState() {
+  const url = getSheetsUrl();
+  const urlCard    = document.getElementById('login-url-card');
+  const urlStatus  = document.getElementById('login-url-status');
+  const urlMissing = document.getElementById('login-url-missing');
+  const urlShort   = document.getElementById('login-url-short');
+  const urlInput   = document.getElementById('login-url-input');
+
+  if (url) {
+    if (urlStatus)  { urlStatus.style.display  = 'block'; }
+    if (urlMissing) { urlMissing.style.display  = 'none';  }
+    if (urlShort)   { urlShort.textContent = url.replace('https://script.google.com/macros/s/', '…/s/').slice(0, 48) + '…'; }
+    if (urlInput)   { urlInput.value = url; }
+    if (urlCard)    { urlCard.style.display = 'none'; } // ซ่อน card แก้ไข
+  } else {
+    if (urlStatus)  { urlStatus.style.display  = 'none';  }
+    if (urlMissing) { urlMissing.style.display  = 'block'; }
+    if (urlCard)    { urlCard.style.display = 'block'; }   // เปิด card ทันที
+  }
+}
+
+function expandUrlCard() {
+  const card = document.getElementById('login-url-card');
+  if (card) card.style.display = 'block';
+  const inp = document.getElementById('login-url-input');
+  if (inp) { inp.value = getSheetsUrl() || ''; setTimeout(() => inp.focus(), 50); }
+}
+
+function collapseUrlCard() {
+  const card = document.getElementById('login-url-card');
+  if (card) card.style.display = 'none';
+}
+
+function saveLoginUrl() {
+  const inp = document.getElementById('login-url-input');
+  const url = (inp?.value || '').trim();
+  if (!url.startsWith('https://script.google.com/macros/s/')) {
+    showToast('URL ไม่ถูกต้อง — ต้องขึ้นต้นด้วย https://script.google.com/macros/s/');
+    return;
+  }
+  setSheetsUrl(url);
+  renderLoginUrlState();
+  showToast('บันทึก URL เรียบร้อย ✓');
+}
+
+async function doLogin() {
+  const username = (document.getElementById('login-username').value || '').trim();
+  const password = (document.getElementById('login-password').value || '').trim();
+  const errEl = document.getElementById('login-error');
+  const btnEl = document.getElementById('btn-login');
+
+  errEl.style.display = 'none';
+
+  if (!username || !password) {
+    errEl.textContent = 'กรุณากรอก Username และ Password';
+    errEl.style.display = 'block';
+    return;
+  }
+
+  const url = getSheetsUrl();
+  if (!url) {
+    expandUrlCard();
+    errEl.textContent = 'กรุณาตั้งค่า URL ก่อนเข้าสู่ระบบ';
+    errEl.style.display = 'block';
+    return;
+  }
+
+  btnEl.disabled = true;
+  btnEl.textContent = 'กำลังตรวจสอบ...';
+
+  try {
+    const res = await fetch(
+      `${url}?action=login&username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}`,
+      { method: 'GET' }
+    );
+    const data = await res.json();
+    if (data.success) {
+      setLoggedInUser({ username, name: data.name || username });
+      window.location.reload();
+    } else {
+      errEl.textContent = 'Username หรือ Password ไม่ถูกต้อง';
+      errEl.style.display = 'block';
+    }
+  } catch (e) {
+    errEl.textContent = 'เชื่อมต่อไม่ได้ — กรุณาตรวจสอบอินเทอร์เน็ตและ URL';
+    errEl.style.display = 'block';
+  } finally {
+    btnEl.disabled = false;
+    btnEl.textContent = 'เข้าสู่ระบบ';
+  }
+}
+
+function enterApp() {
+  const user = getLoggedInUser();
+  const greetEl = document.getElementById('hero-greeting');
+  if (greetEl && user) greetEl.textContent = `สวัสดี, ${user.name || user.username}`;
+  document.getElementById('view-login').classList.remove('active');
+  renderHome();
+  checkForDraft();
+  initSync();
+  showView('home');
+}
+
+function logout() {
+  if (!confirm('ต้องการออกจากระบบ?')) return;
+  clearLoggedInUser();
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.getElementById('view-login').classList.add('active');
+  document.getElementById('login-username').value = '';
+  document.getElementById('login-password').value = '';
+  document.getElementById('login-error').style.display = 'none';
+  renderLoginUrlState();
+  window.scrollTo(0, 0);
+}
+
+// ===================== INIT =====================
+(function init() {
+  const user = getLoggedInUser();
+  if (user) {
+    enterApp();
+  } else {
+    renderLoginUrlState(); // แสดงสถานะ URL บนหน้า login
+  }
+})();
 </script>
 </body>
 </html>
