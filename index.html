@@ -2024,12 +2024,17 @@ async function exportPDF() {
 
   const partSummaryRows = PARTS.map((p, i) => {
     const pp = scores.parts[i];
+    const isNa = pp === null;
+    const pctLabel = isNa ? 'N/A' : `${pp.toFixed(1)}%`;
+    const barColor = isNa ? '#e5e5e5' : scoreBarPDF(pp);
+    const textColor = isNa ? '#6b7280' : scoreColorPDF(pp);
+    const barWidth = isNa ? 0 : pp;
     return `<tr style="border-bottom:1px solid #e5e5e5;">
       <td style="padding:7px 10px;font-size:13px;">${p.name}</td>
-      <td style="padding:7px 10px;font-weight:700;color:${scoreColorPDF(pp)};font-size:13px;text-align:right;">
-        ${pp.toFixed(1)}%
+      <td style="padding:7px 10px;font-weight:700;color:${textColor};font-size:13px;text-align:right;">
+        ${pctLabel}
         <div style="height:6px;background:#e5e5e5;border-radius:3px;margin-top:4px;width:120px;margin-left:auto;">
-          <div style="height:6px;background:${scoreBarPDF(pp)};border-radius:3px;width:${pp}%;"></div>
+          <div style="height:6px;background:${barColor};border-radius:3px;width:${barWidth}%;"></div>
         </div>
       </td>
     </tr>`;
@@ -2120,7 +2125,7 @@ function exportExcel() {
     ['Overall Score (%)', scores.overall.toFixed(2)],
     [],
     ['ส่วน', 'คะแนน (%)'],
-    ...PARTS.map((p, i) => [p.name, scores.parts[i].toFixed(1)])
+    ...PARTS.map((p, i) => [p.name, scores.parts[i] === null ? 'N/A' : scores.parts[i].toFixed(1)])
   ];
   const ws1 = XLSX.utils.aoa_to_sheet(summaryData);
   ws1['!cols'] = [{ wch: 25 }, { wch: 20 }];
