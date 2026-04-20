@@ -1238,6 +1238,7 @@ let currentAuditId = null;
 let currentStep = 0;
 let formData = {};
 let photoTargetQId = null; // legacy — kept for safety
+let sessionPhotos = {};    // รูปภาพเก็บใน memory เท่านั้น ไม่บันทึกลง localStorage
 let gaugeChart = null;
 
 // ===================== STORAGE =====================
@@ -1390,6 +1391,7 @@ function renderHome() {
 // ===================== NEW AUDIT =====================
 function startNewAudit() {
   clearDraft(); // discard any old draft
+  sessionPhotos = {}; // clear previous session photos
   document.getElementById('draft-banner')?.remove();
   formData = { info: {}, answers: {}, photos: {}, notes: {} };
   currentStep = 0;
@@ -1785,11 +1787,13 @@ function submitAudit() {
     createdAt: Date.now(),
     info: { ...formData.info, date: formData.info.date || todayStr() },
     answers: { ...formData.answers },
-    photos: { ...formData.photos },
+    photos: {},            // ไม่บันทึกรูปลง localStorage
     notes: { ...formData.notes },
     overallPct: scores.overall,
     partPcts: scores.parts
   };
+  // เก็บรูปไว้ใน sessionPhotos (memory) สำหรับ export ครั้งเดียว
+  sessionPhotos = { ...formData.photos };
   const audits = getAudits();
   audits.push(audit);
   saveAudits(audits);
@@ -1857,6 +1861,17 @@ function viewAudit(id) {
   currentAuditId = id;
   const audit = getAudit(id);
   if (!audit) return;
+
+  // ถ้าเป็น audit ล่าสุดที่เพิ่ง submit → ใช้ sessionPhotos (รูปใน memory)
+  // audit เก่าจาก history → photos: {} (ไม่มีรูป)
+  const photosToShow = Object.keys(sessionPhotos).length > 0
+    && String(id) === String(getAudits().at(-1)?.id)
+    ? sessionPhotos : {};
+  const hasSessionPhotos = Object.keys(photosToShow).some(k => (photosToShow[k]||[]).length > 0);
+
+  // override audit.photos ด้วย session photos สำหรับแสดงผล
+  const auditWithPhotos = { ...audit, photos: photosToShow };
+
   const scores = calcScoresFromAudit(audit);
   const d = new Date(audit.createdAt);
   const dateStr = d.toLocaleDateString('th-TH', { day: '2-digit', month: 'long', year: 'numeric' });
@@ -1870,7 +1885,7 @@ function viewAudit(id) {
       const ans = audit.answers[q.id];
       const scoreLabel = ans === 'na' ? 'N/A' : (ans !== undefined ? ans : 'ไม่ได้ตอบ');
       const cls = ans === 'na' ? 'sna' : ans === undefined ? 'sna' : parseInt(ans) === 0 ? 's0' : ans === '5' ? 's5' : 's10';
-      const photos = (audit.photos[q.id] || []);
+      const photos = (auditWithPhotos.photos[q.id] || []);
       const notes = audit.notes[q.id] || '';
       answerDetail += `
         <div class="answer-item">
@@ -1884,9 +1899,27 @@ function viewAudit(id) {
     answerDetail += `</div>`;
   });
 
-  const signoffPhotos = (audit.photos['signoff'] || []);
+  const signoffPhotos = (auditWithPhotos.photos['signoff'] || []);
 
   document.getElementById('result-content').innerHTML = `
+    ${hasSessionPhotos ? `
+    <div style="background:#fffbeb;border-bottom:2px solid #fbbf24;padding:12px 16px;
+                display:flex;align-items:center;gap:10px;">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2"
+           width="20" height="20" style="flex-shrink:0">
+        <path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/>
+        <circle cx="12" cy="13" r="4"/>
+      </svg>
+      <div style="flex:1;font-size:13px;color:#92400e;font-weight:600;">
+        📸 รูปภาพจะหายไปเมื่อปิดหน้านี้ — กรุณา Export PDF ก่อน
+      </div>
+      <button onclick="exportPDF()"
+        style="background:#d97706;color:#fff;border:none;border-radius:8px;
+               padding:7px 14px;font-size:12px;font-weight:700;cursor:pointer;
+               white-space:nowrap;font-family:inherit;">
+        Export PDF
+      </button>
+    </div>` : ''}
     <div class="result-header">
       <div class="result-title">Staff Checklist — ${esc(audit.info.site || 'ไม่ระบุ')}</div>
       <div class="result-badges">
@@ -1992,6 +2025,10 @@ async function exportPDF() {
   const audit = getAudit(currentAuditId);
   if (!audit) return;
   const scores = calcScoresFromAudit(audit);
+  // ใช้ sessionPhotos ถ้ายังอยู่ใน memory (audit ล่าสุด)
+  const exportPhotos = Object.keys(sessionPhotos).length > 0
+    && String(currentAuditId) === String(getAudits().at(-1)?.id)
+    ? sessionPhotos : {};
   showToast('กำลัง Export PDF...');
 
   // Build a self-contained printable HTML page
@@ -2013,9 +2050,14 @@ async function exportPDF() {
     part.questions.forEach(q => {
       const ans = audit.answers[q.id];
       const notes = audit.notes[q.id] || '';
+      const qPhotos = (exportPhotos[q.id] || []);
+      const photoHTML = qPhotos.length > 0
+        ? `<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:6px;">
+            ${qPhotos.map(p => `<img src="${p}" style="width:80px;height:80px;object-fit:cover;border-radius:4px;">`).join('')}
+           </div>` : '';
       detailRows += `
         <tr style="border-bottom:1px solid #e5e5e5;">
-          <td style="padding:7px 10px;font-size:12px;line-height:1.5;">${q.label}<br><span style="color:#6b7280;font-size:11px;">${q.title}</span></td>
+          <td style="padding:7px 10px;font-size:12px;line-height:1.5;">${q.label}<br><span style="color:#6b7280;font-size:11px;">${q.title}</span>${photoHTML}</td>
           <td style="padding:7px 10px;text-align:center;font-weight:700;color:${ansClass(ans)};font-size:13px;white-space:nowrap;">${ansLabel(ans)}</td>
           <td style="padding:7px 10px;font-size:11px;color:#555;">${notes}</td>
         </tr>`;
@@ -2040,7 +2082,7 @@ async function exportPDF() {
     </tr>`;
   }).join('');
 
-  const signoffPhotos = (audit.photos['signoff'] || []);
+  const signoffPhotos = (exportPhotos['signoff'] || []);
 
   const htmlContent = `<!DOCTYPE html>
 <html lang="th">
@@ -2577,6 +2619,7 @@ function enterApp() {
 function logout() {
   if (!confirm('ต้องการออกจากระบบ?')) return;
   clearLoggedInUser();
+  sessionPhotos = {}; // clear session photos on logout
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
   document.getElementById('view-login').classList.add('active');
   document.getElementById('login-username').value = '';
