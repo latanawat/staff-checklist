@@ -2466,12 +2466,14 @@ async function initSync() {
 const _submitAuditOriginal = window.submitAudit || submitAudit;
 submitAudit = async function() {
   const scores = calcScores();
+  // เก็บรูปไว้ใน sessionPhotos ก่อน (รูปไม่บันทึกลง localStorage)
+  sessionPhotos = { ...formData.photos };
   const audit = {
     id: Date.now().toString(),
     createdAt: Date.now(),
     info: { ...formData.info, date: formData.info.date || todayStr() },
     answers: { ...formData.answers },
-    photos: { ...formData.photos },
+    photos: {},            // ไม่บันทึกรูปลง localStorage
     notes: { ...formData.notes },
     overallPct: scores.overall,
     partPcts: scores.parts
